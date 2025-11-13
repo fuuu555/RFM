@@ -285,11 +285,12 @@ body {
 /* First page: stats + pie chart */
 .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; align-items: stretch; }
 .stat-card, .chart-card {
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  background: #fff;
-  padding: 16px;
-  box-shadow: var(--shadow);
+  border: 2px solid rgba(15, 23, 42, 0.08);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.9);
+  padding: 18px;
+  box-shadow: 0 20px 45px rgba(15, 23, 42, 0.12);
+  backdrop-filter: blur(6px);
 }
 .stat-card { display: grid; place-items: center; align-content: center; gap: 12px; text-align: center; }
 .stat-title { color: var(--muted); font-weight: 600; letter-spacing: .3px; }
@@ -325,11 +326,12 @@ body {
 /* KPI row */
 .kpis { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
 .kpi-card {
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  background: linear-gradient(180deg, #ffffff, #f7faff);
-  box-shadow: var(--shadow);
-  padding: 10px 12px;
+  border: 2px solid rgba(15, 23, 42, 0.08);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.9);
+  box-shadow: 0 18px 40px rgba(15, 23, 42, 0.1);
+  padding: 12px 14px;
+  backdrop-filter: blur(6px);
   display: grid;
   gap: 8px;
   min-height: 76px;
@@ -452,11 +454,13 @@ body {
 }
 .chart-visual {
   background: #fff;
-  border: 1px solid rgba(15, 23, 42, 0.08);
+  border: 2px solid rgba(15, 23, 42, 0.08);
   border-radius: 14px;
   padding: 20px;
   position: relative;
   overflow: hidden;
+  backdrop-filter: blur(6px);
+  background: rgba(255, 255, 255, 0.85);
 }
 .chart-visual svg { width: 100%; height: 260px; display: block; }
 .chart-y-scale {
@@ -486,11 +490,12 @@ body {
   gap: 16px;
 }
 .key-metric-card {
-  background: var(--card);
-  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.9);
+  border: 2px solid rgba(15, 23, 42, 0.08);
   border-radius: 14px;
-  padding: 16px;
-  box-shadow: var(--shadow);
+  padding: 18px;
+  box-shadow: 0 18px 40px rgba(15, 23, 42, 0.1);
+  backdrop-filter: blur(6px);
   display: grid;
   gap: 6px;
 }

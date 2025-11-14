@@ -3,7 +3,7 @@
 # - 特徵 = 語意 One‑Hot + 價格區間 One‑Hot（可解釋、可追溯）。
 # - 使用 KMeans(k=5) 分群，並以 silhouette ≥ 0.145 作為最低品質線。
 # - 輸出：
-#   * artifacts/desc_to_prod_cluster.csv（商品 → 群代號，供後續 join）
+#   * artifacts/stage3_desc_to_prod_cluster.csv（商品 → 群代號，供後續 join）
 #   * artifacts/objects/products_clusters.npy（群編號陣列）
 #   * artifacts/objects/kmeans_products.pkl（模型本體）
 #   * artifacts/objects/X_products.pkl（特徵矩陣，用於審計/再訓練）
@@ -46,7 +46,7 @@ ARTIFACTS.mkdir(parents=True, exist_ok=True)
 OBJECTS = ARTIFACTS / "objects"
 OBJECTS.mkdir(parents=True, exist_ok=True)
 
-df_cleaned = pd.read_csv(ARTIFACTS / "df_cleaned.csv", dtype={"CustomerID": str})
+df_cleaned = pd.read_csv(ARTIFACTS / "stage2_df_cleaned.csv", dtype={"CustomerID": str})
 
 # 嘗試轉日期（非必要，但保持一致性）
 if "InvoiceDate" in df_cleaned.columns:
@@ -207,7 +207,7 @@ corresp = {key: val for key, val in zip(liste_produits, clusters)}
 # ----------------------------------------------------
 np.save(ARTIFACTS / "products_clusters.npy", clusters)              # 每種產品的叢集編號
 joblib.dump(kmeans_products, ARTIFACTS / "kmeans_products.pkl")     # 產品分群模型（未來可用於新商品）
-pd.Series(corresp).to_csv(ARTIFACTS / "desc_to_prod_cluster.csv", header=["categ_product"])  # 對應表
+pd.Series(corresp).to_csv(ARTIFACTS / "stage3_desc_to_prod_cluster.csv", header=["categ_product"])  # 對應表
 X.to_pickle(ARTIFACTS / "X_products.pkl")                           # 訓練用特徵矩陣 X（審計／重跑用）
 
 print("[Stage 3] 已輸出：CSV 至 artifacts/；npy/pkl 至 artifacts/objects/")

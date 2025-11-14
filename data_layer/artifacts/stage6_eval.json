@@ -1,9 +1,9 @@
 {
-  "Support Vector Machine": 0.7071736573892591,
-  "Logistic Regression": 0.7518620148961191,
-  "k-Nearest Neighbors": 0.6832614660917288,
-  "Decision Tree": 0.7130537044296354,
-  "Random Forest": 0.7530380243041944,
-  "Gradient Boosting": 0.7518620148961191,
-  "Voting_RF_GB_KNN": 0.7589180713445708
+  "Support Vector Machine": 0.7103096824774598,
+  "Logistic Regression": 0.7655821246569973,
+  "k-Nearest Neighbors": 0.6781654253234026,
+  "Decision Tree": 0.7122696981575852,
+  "Random Forest": 0.7506860054880439,
+  "Gradient Boosting": 0.7565660525284202,
+  "Voting_RF_GB_KNN": 0.7640141121128969
 }

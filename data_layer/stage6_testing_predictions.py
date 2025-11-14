@@ -21,7 +21,7 @@ OBJECTS = ARTIFACTS / "objects"
 OBJECTS.mkdir(parents=True, exist_ok=True)
 
 # ---- 載入 Stage 4 產出的 test 資料 ----
-set_test = pd.read_csv(ARTIFACTS / 'set_test.csv')
+set_test = pd.read_csv(ARTIFACTS / "stage4_set_test.csv")
 
 # ---- 依使用者聚合，重建 test 期間的 transactions_per_user（含時間校正）----
 transactions_per_user = set_test.groupby(by=['CustomerID'])['Basket Price'].agg(['count', 'min', 'max', 'mean', 'sum'])

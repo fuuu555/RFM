@@ -9,7 +9,7 @@ import pandas as pd
 DATA_LAYER_DIR = Path(__file__).resolve().parent
 UPLOADS_DIR = DATA_LAYER_DIR / "uploads"
 ARTIFACTS_DIR = DATA_LAYER_DIR / "artifacts"
-BASE_OUTPUT_FILE = ARTIFACTS_DIR / "df_initial_clean.csv"
+BASE_OUTPUT_FILE = ARTIFACTS_DIR / "stage1_df_initial_clean.csv"
 UPLOAD_FILE = UPLOADS_DIR / "data.csv"
 
 

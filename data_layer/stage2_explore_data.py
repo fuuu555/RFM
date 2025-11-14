@@ -12,7 +12,7 @@ ARTIFACTS = DATA_LAYER_DIR / "artifacts"
 ARTIFACTS.mkdir(parents=True, exist_ok=True)
 
 # 讀取 Stage 1 清洗後資料
-df_initial = pd.read_csv(ARTIFACTS / "df_initial_clean.csv", dtype={"CustomerID": str})
+df_initial = pd.read_csv(ARTIFACTS / "stage1_df_initial_clean.csv", dtype={"CustomerID": str})
 df_initial["InvoiceDate"] = pd.to_datetime(df_initial["InvoiceDate"])
 
 # 複製並建立欄位：QuantityCanceled
@@ -70,10 +70,10 @@ if remaining_mask.any():
 df_cleaned["TotalPrice"] = df_cleaned["UnitPrice"] * (df_cleaned["Quantity"] - df_cleaned["QuantityCanceled"])
 
 # 輸出供後續階段使用
-df_cleaned.to_csv(ARTIFACTS / "df_cleaned.csv", index=False)
+df_cleaned.to_csv(ARTIFACTS / "stage2_df_cleaned.csv", index=False)
 pd.DataFrame(df_initial["Description"].unique(), columns=["Description"]).to_csv(
-    ARTIFACTS / "liste_produits.csv", index=False
+    ARTIFACTS / "stage2_liste_produits.csv", index=False
 )
 
 # 僅印最後一行狀態
-print("[Stage 2] Saved: artifacts/df_cleaned.csv, artifacts/liste_produits.csv")
+print("[Stage 2] Saved: artifacts/stage2_df_cleaned.csv, artifacts/stage2_liste_produits.csv")

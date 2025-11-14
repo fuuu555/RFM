@@ -25,12 +25,12 @@ OBJECTS = ARTIFACTS / "objects"
 OBJECTS.mkdir(parents=True, exist_ok=True)
 
 # 讀取清理後資料與產品群映射
-df_cleaned = pd.read_csv(ARTIFACTS / "df_cleaned.csv", dtype={"CustomerID": str})
+df_cleaned = pd.read_csv(ARTIFACTS / "stage2_df_cleaned.csv", dtype={"CustomerID": str})
 df_cleaned["InvoiceDate"] = pd.to_datetime(df_cleaned["InvoiceDate"])
 
-map_path = ARTIFACTS / "desc_to_prod_cluster.csv"
+map_path = ARTIFACTS / "stage3_desc_to_prod_cluster.csv"
 if not map_path.exists():
-    raise FileNotFoundError("缺少 artifacts/desc_to_prod_cluster.csv，請先完成 Stage 3。")
+    raise FileNotFoundError("缺少 artifacts/stage3_desc_to_prod_cluster.csv，請先完成 Stage 3。")
 desc_to_cluster = pd.read_csv(map_path, index_col=0, names=["categ_product"])
 corresp = desc_to_cluster["categ_product"].to_dict()
 
@@ -86,9 +86,11 @@ clusters = kmeans.predict(scaled)
 sil = silhouette_score(scaled, clusters)
 
 # 輸出成果檔
-set_entrainement.to_csv(ARTIFACTS / "set_entrainement.csv", index=False)
-set_test.to_csv(ARTIFACTS / "set_test.csv", index=False)
-transactions_per_user.assign(cluster=clusters).to_csv(ARTIFACTS / "selected_customers_train.csv", index=False)
+set_entrainement.to_csv(ARTIFACTS / "stage4_set_entrainement.csv", index=False)
+set_test.to_csv(ARTIFACTS / "stage4_set_test.csv", index=False)
+transactions_per_user.assign(cluster=clusters).to_csv(
+    ARTIFACTS / "stage4_selected_customers_train.csv", index=False
+)
 joblib.dump(scaler, ARTIFACTS / "scaler.pkl")
 joblib.dump(kmeans, ARTIFACTS / "kmeans_clients.pkl")
 # 同步存到 artifacts/objects/，保持目錄整潔
@@ -111,4 +113,4 @@ end = basket_price["InvoiceDate"].max()
 print(f"[Stage 4] Date range: {start} -> {end}")
 print(f"Training rows: {len(set_entrainement)}  | Test rows: {len(set_test)}")
 print(f"Silhouette (11 clusters): {sil:.3f}")
-print("[Stage 4] Saved: set_entrainement.csv, set_test.csv, scaler.pkl, kmeans_clients.pkl, selected_customers_train.csv")
+print("[Stage 4] Saved: stage4_set_entrainement.csv, stage4_set_test.csv, scaler.pkl, kmeans_clients.pkl, stage4_selected_customers_train.csv")

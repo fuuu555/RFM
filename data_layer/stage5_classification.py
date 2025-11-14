@@ -23,7 +23,7 @@ OBJECTS = ARTIFACTS / "objects"
 OBJECTS.mkdir(parents=True, exist_ok=True)
 
 # ---- Load features/labels from Stage 4 ----
-selected_customers = pd.read_csv(ARTIFACTS/'selected_customers_train.csv')
+selected_customers = pd.read_csv(ARTIFACTS / "stage4_selected_customers_train.csv")
 columns = ['mean', 'categ_0', 'categ_1', 'categ_2', 'categ_3', 'categ_4' ]
 X = selected_customers[columns]
 Y = selected_customers['cluster']

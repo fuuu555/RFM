@@ -2,6 +2,9 @@ import React, { useEffect, useMemo, useState } from 'react'
 
 import ViewerOverview from './ViewerOverview'
 import ViewerInsights from './ViewerInsights'
+import ViewerModels from './ViewerModels'
+import ViewerSegments from './ViewerSegments'
+import ViewerOperational from './ViewerOperational'
 
 const buildRealtimeMock = (seed = 0) => {
   const days = Array.from({ length: 30 }, (_, idx) => ({
@@ -85,7 +88,145 @@ const MOCK_MONTHLY_DATA = [
   },
 ]
 
-const TOTAL_PAGES = 2
+const ANALYTICS_SUMMARY = {
+  refreshedAt: '2025-11-12 04:20',
+  stage3: {
+    description: 'KMeans (k = 5) + 關鍵字 One-Hot',
+    silhouette: 0.187,
+    clusters: [
+      {
+        id: 1,
+        name: '禮贈收藏型',
+        share: 33,
+        avgPrice: 820,
+        keywords: ['gift set', 'seasonal pack', 'bundle'],
+        topSkus: 118,
+        returnRate: 1.8,
+      },
+      {
+        id: 2,
+        name: '佈置控',
+        share: 24,
+        avgPrice: 540,
+        keywords: ['decor', 'lighting', 'string'],
+        topSkus: 94,
+        returnRate: 2.1,
+      },
+      {
+        id: 3,
+        name: '日常補貨',
+        share: 19,
+        avgPrice: 360,
+        keywords: ['refill', 'pack of 6', 'basic'],
+        topSkus: 76,
+        returnRate: 0.9,
+      },
+      {
+        id: 4,
+        name: '派對主理人',
+        share: 15,
+        avgPrice: 980,
+        keywords: ['party', 'banner', 'candle'],
+        topSkus: 52,
+        returnRate: 3.3,
+      },
+      {
+        id: 5,
+        name: '價格敏感型',
+        share: 9,
+        avgPrice: 210,
+        keywords: ['discount', 'value pack'],
+        topSkus: 34,
+        returnRate: 4.8,
+      },
+    ],
+  },
+  stage4: {
+    metrics: {
+      trainRows: 1384,
+      testRows: 428,
+      silhouette: 0.27,
+      avgBasket: 1890,
+      overallTrend: 3.2,
+      monthlyTxn: 3245,
+      toplineShare: '62%',
+      toplineNote: '主要來自「價值型會員」',
+      repeatDays: 21,
+    },
+    segments: [
+      {
+        name: '價值型會員',
+        share: 28,
+        avgBasket: 2280,
+        frequency: '3.4 筆 / 月',
+        trend: 12,
+        trendLabel: '消費頻率提升',
+        story: '高客單且消費穩定，是營收主要來源。',
+        focusProducts: ['禮贈收藏型', '裝飾品'],
+        color: '#2563eb',
+      },
+      {
+        name: '成長潛力',
+        share: 22,
+        avgBasket: 1420,
+        frequency: '2.1 筆 / 月',
+        trend: 8,
+        trendLabel: '客單與頻率同步上升',
+        story: '消費頻率上升中，可能成為下一群價值主力。',
+        focusProducts: ['家飾', '季節新品'],
+        color: '#10b981',
+      },
+      {
+        name: '價格敏感',
+        share: 26,
+        avgBasket: 890,
+        frequency: '1.4 筆 / 月',
+        trend: -6,
+        trendLabel: '平均客單下降',
+        story: '平均客單偏低，促銷活動容易影響行為。',
+        focusProducts: ['補貨品', 'Value Pack'],
+        color: '#f59e0b',
+      },
+      {
+        name: '季節性大戶',
+        share: 24,
+        avgBasket: 3160,
+        frequency: '1.1 筆 / 季',
+        trend: 4,
+        trendLabel: '節慶檔期放大',
+        story: '消費單價高，但集中在節慶月份。',
+        focusProducts: ['禮盒', '派對用品'],
+        color: '#a855f7',
+      },
+    ],
+  },
+  stage5: {
+    bestModel: 'Voting (RF + GB + KNN)',
+    models: [
+      { name: 'Voting (RF + GB + KNN)', accuracy: 0.86, f1: 0.84, lift: 1.23, latency: '210ms' },
+      { name: 'Random Forest', accuracy: 0.82, f1: 0.8, lift: 1.16, latency: '180ms' },
+      { name: 'Gradient Boosting', accuracy: 0.81, f1: 0.79, lift: 1.12, latency: '240ms' },
+      { name: 'Logistic Regression', accuracy: 0.73, f1: 0.71, lift: 1.04, latency: '32ms' },
+      { name: 'Linear SVC', accuracy: 0.7, f1: 0.68, lift: 1.01, latency: '48ms' },
+    ],
+  },
+  stage6: {
+    summary: [
+      { label: '準確率', value: 0.81, type: 'percent' },
+      { label: 'Precision', value: 0.79, type: 'percent' },
+      { label: 'Recall', value: 0.77, type: 'percent' },
+      { label: '覆蓋客戶', value: 1240, type: 'number' },
+    ],
+    verdicts: [
+      { title: '最高 CLV 客群', value: '價值型會員', delta: '+18% 留存機會' },
+      { title: '流失預警', value: '價格敏感', delta: '接觸率需 +32%' },
+      { title: 'Upsell 篩選', value: '季節性大戶', delta: '可投放禮盒組合' },
+    ],
+    playbook: '針對「價格敏感」客群推出跨品項加價購，搭配 Stage 5 投票模型輸出清單即可實施。',
+  },
+}
+
+const TOTAL_PAGES = 5
 
 export default function Viewer({ file, onReset }) {
   const [page, setPage] = useState(0)
@@ -320,7 +461,7 @@ export default function Viewer({ file, onReset }) {
               kpis={kpis}
               renderTrend={renderTrend}
             />
-          ) : (
+          ) : page === 1 ? (
             <ViewerInsights
               monthLabel={monthLabel}
               realtime={realtime}
@@ -328,6 +469,12 @@ export default function Viewer({ file, onReset }) {
               formatMetricValue={formatMetricValue}
               formatTrend={formatTrend}
             />
+          ) : page === 2 ? (
+            <ViewerModels analytics={ANALYTICS_SUMMARY} />
+          ) : page === 3 ? (
+            <ViewerSegments analytics={ANALYTICS_SUMMARY} monthLabel={monthLabel} />
+          ) : (
+            <ViewerOperational analytics={ANALYTICS_SUMMARY} />
           )}
         </div>
 

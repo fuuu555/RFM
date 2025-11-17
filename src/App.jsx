@@ -11,11 +11,16 @@ export default function App() {
     setStep('viewer')
   }
 
+  const handleSkip = () => {
+    setFile(null)
+    setStep('viewer')
+  }
+
   const containerClass = step === 'viewer' ? 'app-container app-container--fullscreen' : 'app-container'
 
   return (
     <div className={containerClass}>
-      {step === 'upload' && <Upload onComplete={handleUploaded} />}
+      {step === 'upload' && <Upload onComplete={handleUploaded} onSkip={handleSkip} />}
       {step === 'viewer' && (
         <Viewer file={file} onReset={() => { setFile(null); setStep('upload') }} />
       )}

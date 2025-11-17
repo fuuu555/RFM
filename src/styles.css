@@ -195,6 +195,25 @@ body {
 }
 .btn:hover { transform: translateY(-1px); box-shadow: 0 10px 28px rgba(59,130,246,.2); }
 .btn:active { transform: translateY(0); }
+.link-btn {
+  margin-top: 16px;
+  background: transparent;
+  border: none;
+  color: var(--muted);
+  font-weight: 600;
+  font-size: 14px;
+  cursor: pointer;
+  text-decoration: underline;
+  padding: 8px 0;
+  display: block;
+  width: 100%;
+  text-align: center;
+}
+.link-btn:hover { color: var(--accent); }
+.link-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
 
 @keyframes spin { to { transform: rotate(360deg); } }
 @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }

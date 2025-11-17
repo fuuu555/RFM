@@ -39,7 +39,7 @@ const parseErrorMessage = async (response) => {
   }
 }
 
-export default function Upload({ onComplete }) {
+export default function Upload({ onComplete, onSkip }) {
   const inputRef = useRef(null)
   const timerRef = useRef(null)
   const [loading, setLoading] = useState(false)
@@ -174,6 +174,14 @@ export default function Upload({ onComplete }) {
           onChange={onChange}
         />
       </div>
+      <button
+        type="button"
+        className="link-btn"
+        onClick={() => onSkip?.()}
+        disabled={loading}
+      >
+        先跳過，直接前往第 1 頁
+      </button>
       {error && (
         <div className="error-text" role="alert">
           {error}

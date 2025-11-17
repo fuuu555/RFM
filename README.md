@@ -13,11 +13,11 @@
 ## 2. 一張圖秒懂
 ```mermaid
 flowchart LR
-    A[前端 Upload.jsx<br/>上傳 CSV] -->|POST /upload| B[FastAPI backend/server.py]
-    B --> C[pipeline.py 執行 Stage 1–6]
-    C --> D[Artifacts (CSV/JSON/PKL)]
-    D --> E[import_artifacts_to_db.py 匯入 MySQL]
-    E --> F[Viewer.jsx / API 顯示洞察]
+    A[前端 Upload.jsx<br/>提交 CSV] -->|POST /upload| B[FastAPI backend/server.py]
+    B --> C[Stage 1–7 pipeline.py]
+    C --> D[Artifacts：CSV・JSON・PKL]
+    D --> E[MySQL（import_artifacts_to_db.py）]
+    E --> F[Backend API / Viewer.jsx]
 ```
 
 ---
@@ -32,7 +32,8 @@ flowchart LR
     S4 --> S5[Stage 5 多模型分類<br/>stage5_classification.py]
     S5 --> S6[Stage 6 測試預測<br/>stage6_testing_predictions.py]
     S6 --> S7[Stage 7 匯入 MySQL<br/>import_artifacts_to_db.py]
-    S7 --> V[Viewer/其他 API 使用資料]
+    S7 --> API[Backend API / 報表層]
+    API --> V[前端 Viewer 或其他客戶端]
 ```
 
 ---

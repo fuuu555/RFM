@@ -7,8 +7,10 @@ from typing import Dict, List, Union
 import time
 
 from . import stage1
+from database.import_artifacts_to_db import import_all_artifacts_to_db
 
 DATA_LAYER_DIR = Path(__file__).resolve().parent
+ARTIFACTS_DIR = DATA_LAYER_DIR / "artifacts"
 
 STAGE_SCRIPTS = [
     ("Stage 2", DATA_LAYER_DIR / "stage2_explore_data.py"),
@@ -44,6 +46,18 @@ def _run_script(stage_name: str, script_path: Path) -> Dict:
     result["status"] = "ok" if completed.returncode == 0 else "error"
     result["duration_sec"] = round(time.perf_counter() - start, 3)
     return result
+
+
+def _primary_stages_completed(results: List[Dict], num_stages: int = 6) -> bool:
+    expected = {f"Stage {idx}" for idx in range(1, num_stages + 1)}
+    completed = {
+        res["stage"]: res
+        for res in results
+        if res.get("stage") in expected
+    }
+    if len(completed) != len(expected):
+        return False
+    return all(res.get("status") == "ok" for res in completed.values())
 
 
 def run_all_stages(stop_on_error: bool = False) -> Dict[str, Union[List[Dict], float]]:
@@ -85,5 +99,32 @@ def run_all_stages(stop_on_error: bool = False) -> Dict[str, Union[List[Dict], f
         total_duration += res.get("duration_sec", 0.0)
         if stop_on_error and res["status"] == "error":
             break
+
+    if _primary_stages_completed(results):
+        import_start = time.perf_counter()
+        try:
+            tables = import_all_artifacts_to_db(str(ARTIFACTS_DIR))
+        except Exception as exc:  # pylint: disable=broad-except
+            duration = time.perf_counter() - import_start
+            results.append(
+                {
+                    "stage": "Stage 7 - Import to DB",
+                    "status": "error",
+                    "error": str(exc),
+                    "duration_sec": round(duration, 3),
+                }
+            )
+            total_duration += duration
+        else:
+            duration = time.perf_counter() - import_start
+            results.append(
+                {
+                    "stage": "Stage 7 - Import to DB",
+                    "status": "ok",
+                    "imported_tables": tables,
+                    "duration_sec": round(duration, 3),
+                }
+            )
+            total_duration += duration
 
     return {"stages": results, "total_duration_sec": round(total_duration, 3)}

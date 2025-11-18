@@ -87,10 +87,12 @@ flowchart LR
 ## 6. 安裝與執行（10 步驟快走法）
 1. **定位專案**：`cd RFM`（假設你已把 repo 下載到本機）。
 2. **建立虛擬環境**：`python -m venv .venv`
+
+Set-ExecutionPolicy -Scope Process RemoteSigned           
 3. **啟用虛擬環境**：Windows PowerShell 執行 `.venv\Scripts\Activate.ps1`
 4. **安裝 Python 套件**：
    ```bash
-   pip install fastapi uvicorn pandas numpy scikit-learn nltk joblib sqlalchemy pymysql openpyxl
+   pip install fastapi uvicorn pandas numpy scikit-learn nltk joblib sqlalchemy pymysql openpyxl shap matplotlib
    ```
 5. **下載 Stage 3 需要的 NLTK 資料**：
    ```bash
@@ -103,6 +105,11 @@ flowchart LR
            nltk.download(pkg)
    PY
    ```
+
+   For windows:
+   python -c "import nltk; nltk.download('punkt'); nltk.download('averaged_perceptron_tagger'); nltk.download('punkt_tab'); nltk.download('averaged_perceptron_tagger_eng')"
+
+
 6. **建立 `.env`**：在 `RFM/.env` 內填入  
    ```
    DATA_DB_URL=mysql+pymysql://<user>:<password>@localhost:3306/<database>

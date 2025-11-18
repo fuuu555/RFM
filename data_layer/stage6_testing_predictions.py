@@ -12,6 +12,9 @@ import pandas as pd
 import joblib
 from sklearn import metrics
 
+import shap
+import matplotlib.pyplot as plt
+
 warnings.filterwarnings("ignore")
 
 DATA_LAYER_DIR = Path(__file__).resolve().parent
@@ -73,6 +76,49 @@ classifiers = [
     (rf,  'Random Forest'),
     (gb,  'Gradient Boosting'),
 ]
+
+# ---- [SHAP] 説明の生成 (Random Forest) ----
+print('[Stage 6] Generating SHAP explanations for Random Forest...')
+try:
+    # 1. Stage 5 で保存した背景データ(X_train)を読み込む
+    X_train_background = pd.read_csv(ARTIFACTS / "stage5_X_train_for_shap.csv")
+
+    # 2. 説明したいモデル (RF) を読み込む (rf は既に上でロードされている)
+    # rf = _load_obj('rf_best.pkl') # 上でロード済み
+    
+    # 3. 説明器(Explainer)を作成する
+    #    TreeExplainer は木系モデル(RF, GB)に高速かつ正確
+    explainer = shap.TreeExplainer(rf, X_train_background)
+    
+    # 4. テストデータ(X)に対するSHAP値を計算する
+    #    X はこのスクリプト内で定義済みの numpy 配列
+    #    特徴量名を渡すために DataFrame に変換する
+    X_test_df = pd.DataFrame(X, columns=feat_cols)
+    shap_values = explainer(X_test_df)
+
+    # 5. [グラフ1] 全クラスを通した「グローバルな特徴量重要度」を保存
+    plt.figure()
+    shap.summary_plot(shap_values, X_test_df, plot_type="bar", show=False)
+    plt.title("SHAP Global Feature Importance (All Classes)")
+    plt.savefig(ARTIFACTS / "stage6_shap_summary_bar.png", bbox_inches='tight')
+    plt.close()
+
+    # 6. [グラフ2] クラス0に対する「詳細な特徴量重要度（ビースウォーム）」を保存
+    #    shap_values[..., 0] は「クラス0」のSHAP値を指す
+    plt.figure()
+    shap.summary_plot(shap_values[..., 0], X_test_df, show=False)
+    plt.title("SHAP Feature Importance (for Class 0)")
+    plt.savefig(ARTIFACTS / "stage6_shap_summary_beeswarm_class0.png", bbox_inches='tight')
+    plt.close()
+    
+    print('[Stage 6] Saved SHAP summary plots to artifacts/')
+
+except FileNotFoundError:
+    print("[Stage 6] SHAP Warning: 'stage5_X_train_for_shap.csv' not found.")
+    print("[Stage 6] Please re-run Stage 5 to generate it.")
+except Exception as e:
+    print(f"[Stage 6] SHAP Error: Failed to generate explanations: {e}")
+
 
 # ---- 安全機率：沒有 predict_proba 時用 decision_function → softmax ----
 def _safe_predict_proba(est, X):

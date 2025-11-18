@@ -222,3 +222,12 @@ for name, est in models_for_eval:
 proba_out = pd.concat(proba_frames, axis=0, ignore_index=True)
 proba_out.to_csv(ARTIFACTS/'stage5_pred_proba.csv', index=False)
 print('[Stage 5] Saved per-sample probabilities to artifacts/stage5_pred_proba.csv')
+
+
+try:
+    # X_train は numpy 配列なので、カラム名を付けて DataFrame に戻す
+    X_train_df = pd.DataFrame(X_train, columns=columns) 
+    X_train_df.to_csv(ARTIFACTS / "stage5_X_train_for_shap.csv", index=False)
+    print('[Stage 5] Saved X_train for SHAP background.')
+except Exception as e:
+    print(f'[Stage 5] Warning: Failed to save X_train for SHAP: {e}')

@@ -25,18 +25,26 @@ warnings.filterwarnings("ignore")
 # NLTK 資源準備：用來做 tokenization + 詞性標註（POS tagging）
 # 若本機沒有，就會自動下載一次
 # ----------------------------------------------------
-try:
-    nltk.data.find("tokenizers/punkt")
-except LookupError:
-    nltk.download("punkt")
-try:
-    nltk.data.find("taggers/averaged_perceptron_tagger")
-except LookupError:
-    try:
-        nltk.download("averaged_perceptron_tagger")
-    except:
-        nltk.download("averaged_perceptron_tagger_eng")
 
+nltk_packages = [
+    "punkt", 
+    "punkt_tab", 
+    "averaged_perceptron_tagger", 
+    "averaged_perceptron_tagger_eng"
+]
+
+for pkg in nltk_packages:
+    try:
+        # まず検索してみて、なければダウンロード
+        if pkg == "punkt":
+            nltk.data.find("tokenizers/punkt")
+        elif pkg == "punkt_tab":
+            nltk.data.find("tokenizers/punkt_tab")
+        elif "tagger" in pkg:
+            nltk.data.find(f"taggers/{pkg}")
+    except LookupError:
+        print(f"Downloading NLTK package: {pkg}...")
+        nltk.download(pkg)
 # ----------------------------------------------------
 # 輸入資料：df_cleaned.csv（上一階段 Stage 2 已清洗與沖銷）
 # ----------------------------------------------------

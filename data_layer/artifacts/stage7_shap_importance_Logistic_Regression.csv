@@ -1,0 +1,7 @@
+﻿feature,mean_abs_shap,model
+mean,1.9343595047134823,Logistic_Regression
+categ_2,1.5043134943523568,Logistic_Regression
+categ_1,1.4861543538481616,Logistic_Regression
+categ_4,1.420430075329585,Logistic_Regression
+categ_0,1.3057581055501992,Logistic_Regression
+categ_3,1.0182887587318128,Logistic_Regression

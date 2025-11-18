@@ -1,0 +1,7 @@
+﻿feature,mean_abs_shap,model
+categ_4,0.034905892845480055,Random_Forest
+categ_0,0.03134124504280933,Random_Forest
+categ_2,0.029031480843358413,Random_Forest
+categ_1,0.026965438493732917,Random_Forest
+categ_3,0.022871819723078283,Random_Forest
+mean,0.01769178047588382,Random_Forest

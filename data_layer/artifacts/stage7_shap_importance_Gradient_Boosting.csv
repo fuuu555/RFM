@@ -1,0 +1,7 @@
+﻿feature,mean_abs_shap,model
+categ_0,0.033264082020255215,Gradient_Boosting
+categ_1,0.03296723315756657,Gradient_Boosting
+categ_4,0.030676092241763427,Gradient_Boosting
+categ_2,0.02606305773170383,Gradient_Boosting
+categ_3,0.024228958943788296,Gradient_Boosting
+mean,0.020714026146051768,Gradient_Boosting

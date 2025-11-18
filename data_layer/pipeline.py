@@ -18,6 +18,7 @@ STAGE_SCRIPTS = [
     ("Stage 4", DATA_LAYER_DIR / "stage4_customer_segmentation.py"),
     ("Stage 5", DATA_LAYER_DIR / "stage5_classification.py"),
     ("Stage 6", DATA_LAYER_DIR / "stage6_testing_predictions.py"),
+    ("Stage 7", DATA_LAYER_DIR / "stage7.py"),
 ]
 
 
@@ -48,7 +49,7 @@ def _run_script(stage_name: str, script_path: Path) -> Dict:
     return result
 
 
-def _primary_stages_completed(results: List[Dict], num_stages: int = 6) -> bool:
+def _primary_stages_completed(results: List[Dict], num_stages: int = 7) -> bool:
     expected = {f"Stage {idx}" for idx in range(1, num_stages + 1)}
     completed = {
         res["stage"]: res
@@ -61,7 +62,7 @@ def _primary_stages_completed(results: List[Dict], num_stages: int = 6) -> bool:
 
 
 def run_all_stages(stop_on_error: bool = False) -> Dict[str, Union[List[Dict], float]]:
-    """Run Stage 1 (function) followed by Stage 2–6 scripts."""
+    """Run Stage 1 (function) followed by Stage 2–7 scripts."""
     results: List[Dict] = []
     total_duration = 0.0
 
@@ -108,7 +109,7 @@ def run_all_stages(stop_on_error: bool = False) -> Dict[str, Union[List[Dict], f
             duration = time.perf_counter() - import_start
             results.append(
                 {
-                    "stage": "Stage 7 - Import to DB",
+                    "stage": "Stage 8 - Import to DB",
                     "status": "error",
                     "error": str(exc),
                     "duration_sec": round(duration, 3),
@@ -119,7 +120,7 @@ def run_all_stages(stop_on_error: bool = False) -> Dict[str, Union[List[Dict], f
             duration = time.perf_counter() - import_start
             results.append(
                 {
-                    "stage": "Stage 7 - Import to DB",
+                    "stage": "Stage 8 - Import to DB",
                     "status": "ok",
                     "imported_tables": tables,
                     "duration_sec": round(duration, 3),

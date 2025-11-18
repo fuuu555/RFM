@@ -1,0 +1,6 @@
+{
+  "Random_Forest": 0.7530380243041944,
+  "Gradient_Boosting": 0.7538220305762446,
+  "Logistic_Regression": 0.7542140337122697,
+  "Voting_RF_GB_KNN": 0.7585260682085456
+}

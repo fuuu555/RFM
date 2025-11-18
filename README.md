@@ -1,12 +1,12 @@
 # RFM Pipeline & Viewer
 
-這個系統解決「分析大量交易 CSV 既耗時又容易出錯」的痛點：使用者只要把檔案交給前端，上傳後端，即可自動觸發 Stage 1–6 的資料處理、把產出的 CSV/模型匯入 MySQL，最後 Viewer 能用 API 或資料庫呈現結果。整個流程完全依照專案現有程式運作，沒有任何手動搬檔。
+這個系統解決「分析大量交易 CSV 既耗時又容易出錯」的痛點：使用者只要把檔案交給前端，上傳後端，即可自動觸發 Stage 1–7 的資料處理與 SHAP 解釋、再由 Stage 8 把產出的 CSV/模型匯入 MySQL，最後 Viewer 能用 API 或資料庫呈現結果。整個流程完全依照專案現有程式運作，沒有任何手動搬檔。
 
 ---
 
 ## 1. 專案簡介（白話、簡短）
 - **它是什麼？** 一套自助式 RFM/Pipeline 平台，讓商務使用者把原始銷售明細 CSV 丟進來，就能得到乾淨資料、產品/顧客分群與模型評估結果。
-- **核心流程**：Upload.jsx 上傳 CSV → backend/server.py 接收並觸發 `data_layer/pipeline.py` → Stage 1–6 生成 artifacts → `database/import_artifacts_to_db.py` 自動匯入 MySQL → Viewer（React）可直接顯示結果或透過 API 讀資料庫。
+- **核心流程**：Upload.jsx 上傳 CSV → backend/server.py 接收並觸發 `data_layer/pipeline.py` → Stage 1–7 生成 artifacts + SHAP 報表 → `database/import_artifacts_to_db.py` 自動匯入 MySQL → Viewer（React）可直接顯示結果或透過 API 讀資料庫。
 
 ---
 
@@ -14,7 +14,7 @@
 ```mermaid
 flowchart LR
     A[前端 Upload.jsx<br/>提交 CSV] -->|POST /upload| B[FastAPI backend/server.py]
-    B --> C[Stage 1–7 pipeline.py]
+    B --> C[Stage 1–8 pipeline.py]
     C --> D[Artifacts：CSV・JSON・PKL]
     D --> E[MySQL（import_artifacts_to_db.py）]
     E --> F[Backend API / Viewer.jsx]
@@ -31,8 +31,9 @@ flowchart LR
     S3 --> S4[Stage 4 客戶分層<br/>stage4_customer_segmentation.py]
     S4 --> S5[Stage 5 多模型分類<br/>stage5_classification.py]
     S5 --> S6[Stage 6 測試預測<br/>stage6_testing_predictions.py]
-    S6 --> S7[Stage 7 匯入 MySQL<br/>import_artifacts_to_db.py]
-    S7 --> API[Backend API / 報表層]
+    S6 --> S7[Stage 7 SHAP 解釋<br/>stage7.py]
+    S7 --> S8[Stage 8 匯入 MySQL<br/>import_artifacts_to_db.py]
+    S8 --> API[Backend API / 報表層]
     API --> V[前端 Viewer 或其他客戶端]
 ```
 
@@ -42,7 +43,7 @@ flowchart LR
 | 資料夾 / 檔案 | 用途 |
 |---------------|------|
 | `backend/` | FastAPI 入口。`server.py` 提供 `POST /upload`、儲存檔案並呼叫 pipeline。 |
-| `data_layer/` | 全部 Stage 腳本與 artifacts/ uploads/ 資料夾。`pipeline.py` 串 Stage 1–6 + Stage 7。 |
+| `data_layer/` | 全部 Stage 腳本與 artifacts/ uploads/ 資料夾。`pipeline.py` 串 Stage 1–7 + Stage 8。 |
 | `database/` | SQLAlchemy 設定與資料匯入工具。`db_init.py` 讀 `.env` 建 engine、`import_artifacts_to_db.py` 將 artifacts 自動建表與匯入。 |
 | `frontend/` | Vite + React App。`src/pages/Upload.jsx` 供上傳進度、`src/pages/Viewer*.jsx` 顯示洞察。 |
 | `.env` | 存放 `DATA_DB_URL` 及可選的 `MAX_UPLOAD_MB`，由 `db_init.py` 自動載入。 |
@@ -54,19 +55,19 @@ flowchart LR
 ## 5. 逐步流程解說
 ### 前端如何上傳
 - `Upload.jsx` 讀 `VITE_API_BASE_URL`（預設 `http://localhost:8000`），並限制檔案大小不超過 `MAX_UPLOAD_MB`（前端與後端都會檢查）。
-- 成功送出表單後顯示 Stage 1–6 的動態進度，任何 Stage 失敗會把錯誤訊息（HTTP detail 或 stdout/stderr）顯示給使用者。
+- 成功送出表單後顯示 Stage 1–7 的動態進度，任何 Stage 失敗會把錯誤訊息（HTTP detail 或 stdout/stderr）顯示給使用者。
 
 ### backend/server.py 如何接收
 1. `POST /upload` 以串流方式寫入 `data_layer/uploads/data.csv`，確保不超過 `MAX_UPLOAD_MB`。
 2. 檔案寫完後透過 `run_in_threadpool` 呼叫 `pipeline.run_all_stages(stop_on_error=False)`。
 3. 將每個 Stage 的狀態、耗時、summary/stdout/stderr 以及匯入 DB 的結果組成 JSON 回傳前端。
 
-### pipeline.py 如何串 Stage 1–6
-- Stage 1 以函式呼叫（內存 `stage1.run_stage()`），其餘 Stage 2–6 使用 `subprocess.run([sys.executable, script])` 逐一執行並記錄輸出。
-- `_primary_stages_completed` 用來確認 Stage 1–6 全部成功，再進一步執行 Stage 7 匯入 DB。
+### pipeline.py 如何串 Stage 1–7
+- Stage 1 以函式呼叫（內存 `stage1.run_stage()`），其餘 Stage 2–7 使用 `subprocess.run([sys.executable, script])` 逐一執行並記錄輸出。
+- `_primary_stages_completed` 用來確認 Stage 1–7 全部成功，再進一步執行 Stage 8 匯入 DB。
 
 <details>
-<summary>Stage 1–6 技術細節（展開閱讀）</summary>
+<summary>Stage 1–7 技術細節（展開閱讀）</summary>
 
 - **Stage 1（`stage1.py`）**：讀 `uploads/data.csv`，強制 `CustomerID` 和 `InvoiceID` 為字串、轉換 `InvoiceDate`、丟掉缺少 `CustomerID` 的列、移除重複，輸出 `artifacts/stage1_df_initial_clean.csv` 並記錄重複數。
 - **Stage 2（`stage2_explore_data.py`）**：複製資料並找出負數 Quantity 的訂單，透過 `CustomerID + StockCode` 配對最近的正數交易，推算 `QuantityCanceled`，重新計算 `TotalPrice`，輸出 `stage2_df_cleaned.csv` 與 `stage2_liste_produits.csv`。
@@ -74,11 +75,12 @@ flowchart LR
 - **Stage 4（`stage4_customer_segmentation.py`）**：把 Stage 3 的產品群寫回交易資料，計算每張發票的 Basket KPI，依 2011-10-01 切 Train/Test，為每位顧客算出 `count/min/max/mean` 及各產品群百分比，再以 StandardScaler + KMeans(11) 進行客戶分群，輸出 `stage4_selected_customers_train.csv` 等檔。
 - **Stage 5（`stage5_classification.py`）**：針對 Stage 4 的 `cluster` 目標執行多種分類器（SVC、LR、KNN、Decision Tree、Random Forest、AdaBoost、Gradient Boosting），每個模型用 GridSearchCV 調參，存下最佳 estimator 到 `artifacts/objects/`，並建立 RF+GB+KNN 的 VotingClassifier，輸出 `stage5_eval.json` 與 `stage5_pred_proba.csv`。
 - **Stage 6（`stage6_testing_predictions.py`）**：使用 Stage 4 的測試集建特徵矩陣，載回 Stage 5 儲存的模型，計算每個模型在測試集的 accuracy、預測結果及機率分佈，輸出 `stage6_eval.json`、`stage6_predictions.csv`、`stage6_pred_proba.csv`。
+- **Stage 7（`stage7.py`）**：重建 Stage 6 的測試特徵、載入 Stage 5 的最佳模型並計算 SHAP 值，輸出特徵重要度 CSV、逐樣本 SHAP 值以及 summary plot 到 artifacts。
 
 </details>
 
-### Stage 7 如何匯入 MySQL
-- `database/import_artifacts_to_db.py` 被 pipeline 視為 Stage 7，只有 Stage 1–6 都成功才會被呼叫。
+### Stage 8 如何匯入 MySQL
+- `database/import_artifacts_to_db.py` 被 pipeline 視為 Stage 8，只有 Stage 1–7 都成功才會被呼叫。
 - 腳本會掃描 `data_layer/artifacts/` 下的所有 CSV/XLS/XLSX 檔，透過 `infer_schema()` 判斷欄位型別並建立（或重新建立）對應的 MySQL 資料表，再用 `to_sql(..., method="multi")` 批次寫入。
 - `db_init.py` 會自動載入最近的 `.env` 並建立 engine，所以只要 `DATA_DB_URL` 正確，就能無縫匯入。
 
@@ -131,7 +133,7 @@ Set-ExecutionPolicy -Scope Process RemoteSigned
    PY
    ```
 10. **（可選）僅重新匯入 artifacts 到 MySQL**：`python -m database.import_artifacts_to_db --folder data_layer/artifacts`  
-    > 一般上傳流程已自動執行 Stage 7，只有你想重建資料庫或驗證 schema 時才需要手動跑。
+    > 一般上傳流程已自動執行 Stage 8，只有你想重建資料庫或驗證 schema 時才需要手動跑。
 
 ---
 
@@ -163,7 +165,7 @@ Set-ExecutionPolicy -Scope Process RemoteSigned
       "duration_sec": 54.782
     },
     {
-      "stage": "Stage 7 - Import to DB",
+      "stage": "Stage 8 - Import to DB",
       "status": "ok",
       "imported_tables": ["stage1_df_initial_clean", "stage6_predictions", "stage6_pred_proba"],
       "duration_sec": 20.101
@@ -192,7 +194,7 @@ Set-ExecutionPolicy -Scope Process RemoteSigned
   | `y_true` | 以 Stage 4 KMeans 得到的真實群組 |
   | `y_pred` | 各模型預測的群組 |
 
-所有表格都自動由 Stage 7 依檔名正規化（小寫、底線）後建立。
+所有表格都自動由 Stage 8 依檔名正規化（小寫、底線）後建立。
 
 ---
 
@@ -201,7 +203,7 @@ Set-ExecutionPolicy -Scope Process RemoteSigned
 - **`.env 沒被讀到`**：`db_init.py` 會往上層尋找最近的 `.env`，請把檔案放在 `RFM/.env`，確保 `DATA_DB_URL` 存在。
 - **MySQL 無法連線或匯入失敗**：檢查 `DATA_DB_URL` 帳密/port/database 是否正確，並確保資料庫已建立，使用的帳號具備 `CREATE/DROP TABLE` 權限。
 - **缺少 NLTK 資料**：Stage 3 需要 `punkt` 與 `averaged_perceptron_tagger`，請重新執行 README 的 NLTK 下載程式碼。
-- **資料庫 DROP TABLE 權限不足**：Stage 7 會重建表格，若帳號沒有刪除權限會失敗；請改用具權限的帳號或手動調整腳本。
+- **資料庫 DROP TABLE 權限不足**：Stage 8 會重建表格，若帳號沒有刪除權限會失敗；請改用具權限的帳號或手動調整腳本。
 - **上傳檔案超過 `MAX_UPLOAD_MB`**：前後端都會拒收超過限制的檔案，可在 `.env` 設定更大的 `MAX_UPLOAD_MB` 或先拆分檔案。
 
 ---

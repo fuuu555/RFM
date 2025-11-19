@@ -79,7 +79,7 @@ async def upload_file(file: UploadFile = File(...)):
     }
 # ... (冒頭のimportなどはそのまま) ...
 
-# トレンド計算用のヘルパー関数
+# 趨勢計算用輔助函數
 def calculate_trend(current, previous):
     if previous == 0:
         return 0.0
@@ -95,14 +95,14 @@ def analyze_overview():
         if "InvoiceDate" in df.columns:
             df["InvoiceDate"] = pd.to_datetime(df["InvoiceDate"])
         
-        # --- 時間軸での分割 (トレンド計算用) ---
+        # --- 以時間軸切分（趨勢計算用） ---
         last_date = df["InvoiceDate"].max()
         cutoff_current = last_date - pd.Timedelta(days=30)
         cutoff_previous = cutoff_current - pd.Timedelta(days=30)
 
         # 今期 (直近30日)
         df_cur = df[df["InvoiceDate"] > cutoff_current]
-        # 前期 (その前の30日)
+        # 前期（往前 30 日）
         df_prev = df[(df["InvoiceDate"] <= cutoff_current) & (df["InvoiceDate"] > cutoff_previous)]
 
         # 1. KPI計算 (今期 vs 前期)
@@ -119,15 +119,15 @@ def analyze_overview():
         avg_spend_cur = int(sales_cur / members_cur) if members_cur else 0
         avg_spend_prev = int(sales_prev / members_prev) if members_prev else 0
 
-        # 活躍率 (全期間の会員のうち、直近30日で買った人の割合)
+        # 活躍率（整體會員中，近 30 日有購買者所占比例）
         total_members_all_time = df["CustomerID"].nunique()
         engagement_rate = round((members_cur / total_members_all_time) * 100, 1) if total_members_all_time else 0
         
-        # 前期の活躍率 (簡易計算)
+        # 之前期間的活躍率（簡易計算）
         total_members_at_prev = df[df["InvoiceDate"] <= cutoff_current]["CustomerID"].nunique()
         engagement_prev = round((members_prev / total_members_at_prev) * 100, 1) if total_members_at_prev else 0
 
-        # 2. 地域分布 (Country) - 全期間で集計
+        # 2. 地區分布 (Country) - 全期間匯總
         country_counts = df["Country"].value_counts(normalize=True) * 100
         regions = []
         colors = ["#60a5fa", "#34d399", "#f59e0b", "#ef4444", "#a855f7"]
@@ -173,19 +173,19 @@ def analyze_overview():
         print(f"Error analyzing overview: {e}")
         return None
 
-# 顧客セグメント名付けマッピング（RFM分析＆購買パターンに基づく）
+# 顧客分群命名對照（基於 RFM 分析與購買行為）
 SEGMENT_NAMES = {
-    0: "エコノミー層",  # Low Freq / Medium Spend
-    1: "スタンダード層",  # Medium Freq / Medium Spend (最大規模セグメント)
-    2: "VIP層",  # High Freq / High Spend
-    3: "スーパーVIP層",  # Very High Freq / Very High Spend
-    4: "散発高単価層",  # Low Freq / High Spend
-    5: "継続高単価層",  # Medium Freq / High Spend
-    6: "カテゴリ専門層(4)",  # Low Freq / Medium Spend (特定カテゴリ集中)
-    7: "カテゴリ専門層(1)",  # Low Freq / Medium Spend (特定カテゴリ集中)
-    8: "ロイヤル層",  # Extremely High Freq / High Spend
-    9: "カテゴリ専門層(0)",  # Low Freq / Medium Spend (特定カテゴリ集中)
-    10: "カテゴリ専門層(3)",  # Low Freq / Medium Spend (特定カテゴリ集中)
+    0: "經濟層",  # 低頻率 / 中等消費
+    1: "標準層",  # 中頻率 / 中等消費（最大族群）
+    2: "VIP 層",  # 高頻率 / 高消費
+    3: "超級 VIP 層",  # 極高頻率 / 極高消費
+    4: "偶發高單價層",  # 低頻率 / 高消費
+    5: "持續高單價層",  # 中頻率 / 高消費
+    6: "類別專精層(4)",  # 某類別集中
+    7: "類別專精層(1)",
+    8: "忠誠客群",  # 極高頻率 / 高消費
+    9: "類別專精層(0)",
+    10: "類別專精層(3)",
 }
 
 # --- Stage 4 集計 (リピート日数とSilhouetteの読み込みロジックを整理) ---
@@ -268,25 +268,25 @@ def analyze_stage4_segments():
         segment_name = SEGMENT_NAMES.get(int(cluster_id), f"Cluster {cluster_id}")
 
         # ストーリー生成ロジック（詳細化）
-        story = "一般顧客層"
+        story = "一般顧客群"
         if freq > 50:  # 異常に高い頻度
-            story = "究極のロイヤル顧客。ほぼ毎日購入レベル。最優先対応必須。"
+            story = "終極忠誠顧客，幾乎每天購買。請列為最高優先處理。"
         elif freq > 15 and total_spend > 5000:  # VIP層
-            story = "高価値顧客。定期的に多額購入。専任サポートを検討。"
+            story = "高價值顧客，定期大量購買。建議提供專屬客服。"
         elif freq > 10 and total_spend > 5000:  # VIP層
-            story = "VIP顧客。高い購買頻度と高額支出。キャンペーン対象。"
+            story = "VIP 顧客，購買頻率高且消費金額大，適合納入專屬活動。"
         elif freq > 10:  # 高頻度層
-            story = "高頻度リピーター。定期購入客。維持・拡大の重点層。"
+            story = "高頻率回購者，定期購買，為維持與擴大重點對象。"
         elif total_spend > 5000 and freq < 5:  # 散発高単価層
-            story = "散発的だが高単価。大口プロジェクトや法人顧客の可能性。"
+            story = "偶發性但單次消費高，可能為大宗或企業客戶。"
         elif total_spend > 2000:  # 継続高単価層
-            story = "継続的な高額消費層。安定性が高い。長期関係構築対象。"
+            story = "持續性高額消費族群，穩定度高，適合建立長期合作關係。"
         elif avg_basket > avg_basket_global * 1.5:
-            story = "単価は高めだが購買頻度は中程度。中堅顧客層。"
+            story = "客單價較高但購買頻率中等，為中堅顧客群。"
         elif freq < 2.5 and avg_basket < avg_basket_global * 0.7:
-            story = "エコノミー層。価格志向。マス向けキャンペーン対象。"
+            story = "經濟型顧客，價格導向，適合大眾促銷。"
         else:
-            story = "スタンダード層。バランスの取れた顧客。全体の大多数。"
+            story = "標準型顧客，購買行為均衡，佔整體多數。"
 
         color_palette = ["#2563eb", "#10b981", "#f59e0b", "#a855f7", "#ef4444", "#ec4899", "#14b8a6", "#8b5cf6", "#d97706", "#06b6d4", "#f43f5e"]
         segment_color = color_palette[int(cluster_id) % len(color_palette)]

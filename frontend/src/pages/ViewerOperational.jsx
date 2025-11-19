@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
 
-// APIのベースURL (backend/server.py と合わせる)
+// API 基礎 URL（與 backend/server.py 一致）
 const API_BASE = 'http://localhost:8000'
 
 export default function ViewerOperational({ analytics }) {
@@ -16,24 +16,23 @@ export default function ViewerOperational({ analytics }) {
         <div className="models-section-head">
           <div>
             <p className="models-eyebrow">Stage 7 · Model Explainability</p>
-            <h2 className="models-title">顧客分類AIモデルの判断根拠 (SHAP値分析)</h2>
+            <h2 className="models-title">顧客分類AI模型的判斷依據 (SHAP值分析)</h2>
             <p className="models-subtitle">
-              どの顧客属性（購買頻度、単価、カテゴリ選好）がクラスタリングに最も影響したかを可視化
+              可視化哪些顧客屬性（購買頻率、客單價、類別偏好）對分群影響最大
             </p>
           </div>
         </div>
 
         {shapImages && (shapImages.summary || shapImages.beeswarm || modelList.length > 0) ? (
           <div>
-            {/* デフォルト表示 */}
+            {/* 預設顯示 */}
             {(shapImages.summary || shapImages.beeswarm) && selectedModel === 'summary' && (
               <div className="two-col">
                 {/* バープロット（特徴量重要度） */}
                 <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                  <h3 style={{ margin: 0 }}>全体的な特徴量の重要度（棒グラフ）</h3>
+                  <h3 style={{ margin: 0 }}>整體特徵重要度（長條圖）</h3>
                   <p style={{ fontSize: '13px', color: '#6b7280', margin: 0 }}>
-                    モデルが顧客を分類する際に、どの項目（特徴量）を重視したかを示します。
-                    値が大きいほど、その特徴がクラスタリング判定に重要です。
+                    顯示模型在分類顧客時，哪些特徵被視為較重要。數值越大表示該特徵對分群判定的影響越大。
                   </p>
                   <div
                     className="media"
@@ -54,17 +53,16 @@ export default function ViewerOperational({ analytics }) {
                         style={{ width: '100%', height: 'auto', objectFit: 'contain' }}
                       />
                     ) : (
-                      <p style={{ color: '#9ca3af' }}>棒グラフが見つかりません</p>
+                      <p style={{ color: '#9ca3af' }}>找不到長條圖</p>
                     )}
                   </div>
                 </div>
 
                 {/* ビースウォームプロット（詳細分析） */}
                 <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                  <h3 style={{ margin: 0 }}>特徴量の分布と影響方向（ビースウォーム）</h3>
+                  <h3 style={{ margin: 0 }}>特徵分佈與影響方向（Beeswarm）</h3>
                   <p style={{ fontSize: '13px', color: '#6b7280', margin: 0 }}>
-                    各顧客サンプルの特徴量が、モデルの予測スコアにプラス（右）またはマイナス（左）の方向で
-                    どの程度影響したかを表示。色は特徴量の値の大小を示します。
+                    顯示各顧客樣本的特徵如何朝正向（右）或負向（左）影響模型預測；顏色代表該特徵數值的高低。
                   </p>
                   <div
                     className="media"
@@ -85,7 +83,7 @@ export default function ViewerOperational({ analytics }) {
                         style={{ width: '100%', height: 'auto', objectFit: 'contain' }}
                       />
                     ) : (
-                      <p style={{ color: '#9ca3af' }}>ビースウォームが見つかりません</p>
+                      <p style={{ color: '#9ca3af' }}>找不到 Beeswarm 圖</p>
                     )}
                   </div>
                 </div>
@@ -96,7 +94,7 @@ export default function ViewerOperational({ analytics }) {
             {modelList.length > 0 && (
               <div style={{ marginTop: '30px' }}>
                 <div style={{ marginBottom: '20px' }}>
-                  <h3 style={{ marginBottom: '10px' }}>使用したモデル別の詳細分析</h3>
+                  <h3 style={{ marginBottom: '10px' }}>各模型的詳細分析</h3>
                   <div
                     style={{
                       display: 'flex',
@@ -127,9 +125,9 @@ export default function ViewerOperational({ analytics }) {
 
                 {modelList.includes(selectedModel) && shapImages.models[selectedModel] && (
                   <div className="two-col">
-                    {/* バープロット */}
+                    {/* 長條圖 */}
                     <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                      <h4 style={{ margin: 0 }}>{selectedModel} - 特徴量重要度</h4>
+                      <h4 style={{ margin: 0 }}>{selectedModel} - 特徵重要度</h4>
                       <div
                         className="media"
                         style={{
@@ -149,7 +147,7 @@ export default function ViewerOperational({ analytics }) {
                             style={{ width: '100%', height: 'auto', objectFit: 'contain' }}
                           />
                         ) : (
-                          <p style={{ color: '#9ca3af' }}>バープロットが見つかりません</p>
+                          <p style={{ color: '#9ca3af' }}>找不到長條圖</p>
                         )}
                       </div>
                     </div>
@@ -176,7 +174,7 @@ export default function ViewerOperational({ analytics }) {
                             style={{ width: '100%', height: 'auto', objectFit: 'contain' }}
                           />
                         ) : (
-                          <p style={{ color: '#9ca3af' }}>詳細プロットが見つかりません</p>
+                          <p style={{ color: '#9ca3af' }}>找不到詳細圖表</p>
                         )}
                       </div>
                     </div>
@@ -187,7 +185,7 @@ export default function ViewerOperational({ analytics }) {
           </div>
         ) : (
           <div className="placeholder-card">
-            <p>SHAP分析データがまだありません。アップロードしたCSVに対してStage 7を実行してください。</p>
+            <p>尚無 SHAP 分析資料。請對上傳的 CSV 執行 Stage 7。</p>
             <p style={{ fontSize: '12px', color: '#9ca3af', marginTop: '10px' }}>
               パイプライン実行: <code>python -m data_layer.pipeline</code>
             </p>
@@ -196,21 +194,20 @@ export default function ViewerOperational({ analytics }) {
       </section>
 
       <section className="models-section" style={{ marginTop: '30px' }}>
-        <h3>SHAP値分析について</h3>
+        <h3>關於 SHAP 值分析</h3>
         <div style={{ fontSize: '13px', lineHeight: '1.6', color: '#6b7280' }}>
           <p>
             <strong>SHAP（SHapley Additive exPlanations）</strong>
-            は、機械学習モデルの予測を解釈するための方法です。本分析では、ランダムフォレスト・勾配ブースティング・投票分類器が、
-            顧客をどのような属性に基づいてクラスタリングしたかを可視化しています。
+            是一種解釋機器學習模型預測的方法。本分析展示了隨機森林、梯度提升與投票分類器等模型，
+            對顧客分群判定時，哪些屬性影響最大。
           </p>
           <p style={{ marginTop: '10px' }}>
-            <strong>棒グラフ（Feature Importance）：</strong>
-            各特徴量の平均的な重要度を表示。値が大きいほど、モデルの判定に重要です。
+            <strong>長條圖（Feature Importance）：</strong>
+            顯示各特徵的平均重要度，數值越大表示該特徵對模型判定越重要。
           </p>
           <p style={{ marginTop: '10px' }}>
-            <strong>ビースウォーム（Beeswarm Plot）：</strong>
-            個々の顧客サンプルがモデル予測にどう影響したかを表示。プロットの位置（左右）と色（特徴値の大小）から、
-            その特徴がどの方向でクラスタリングに寄与したかが分かります。
+            <strong>Beeswarm（分佈圖）：</strong>
+            顯示個別顧客樣本的特徵如何影響模型預測；位置（左右）與顏色（特徵數值高低）可幫助判讀影響方向與強度。
           </p>
         </div>
       </section>

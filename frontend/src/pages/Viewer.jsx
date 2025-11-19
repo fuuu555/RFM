@@ -6,7 +6,7 @@ import ViewerModels from './ViewerModels'
 import ViewerSegments from './ViewerSegments'
 import ViewerOperational from './ViewerOperational'
 
-// 開発用ダミーデータ (API取得失敗時や初期表示用)
+// 開發用假資料（當 API 取得失敗或初始顯示用）
 const buildRealtimeMock = (seed = 0) => {
   const days = Array.from({ length: 30 }, (_, idx) => ({
     day: idx + 1,
@@ -47,7 +47,7 @@ const MOCK_MONTHLY_DATA = [
     },
     realtime: buildRealtimeMock(0),
   },
-  // ... 省略 ... (他の月データはそのままmockでOK)
+  // ... 省略 ...（其他月份資料保留 mock 即可）
 ]
 
 const INITIAL_ANALYTICS = {
@@ -70,7 +70,7 @@ const INITIAL_ANALYTICS = {
   stage6: {
     models: [],
   },
-  // 【ここが重要】SHAP画像用のプレースホルダーを追加
+  // 【重要】新增 SHAP 圖像占位符
   shap_images: {
       summary: null,
       beeswarm: null
@@ -78,7 +78,7 @@ const INITIAL_ANALYTICS = {
 }
 
 const TOTAL_PAGES = 5
-const API_BASE = 'http://localhost:8000' // APIのエンドポイント
+const API_BASE = 'http://localhost:8000' // API 端點
 
 export default function Viewer({ file, onReset }) {
   const [page, setPage] = useState(0)
@@ -89,7 +89,7 @@ export default function Viewer({ file, onReset }) {
   const [animatedMembers, setAnimatedMembers] = useState(0)
   
 
-// データ用のState (初期値はMockだが、API取得後に上書きする)
+// 資料用的 State（初始為 Mock，API 取得後會覆寫）
   const [displayData, setDisplayData] = useState(MOCK_MONTHLY_DATA[0]) 
   const [analyticsData, setAnalyticsData] = useState(INITIAL_ANALYTICS)
 
@@ -403,7 +403,7 @@ export default function Viewer({ file, onReset }) {
 
   const formatTrend = (value) => `${Math.abs(value).toFixed(2)}%`
 
-  // 【変更】ViewerOperational などを呼び出す際に analyticsData を渡す
+  // 【變更】呼叫 ViewerOperational 等元件時傳入 analyticsData
   return (
     <div className="viewer-shell">
       <header className="viewer-header">

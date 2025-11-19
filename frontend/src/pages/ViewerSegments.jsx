@@ -14,7 +14,7 @@ const formatFrequency = (freq) => {
 export default function ViewerSegments({ analytics, monthLabel }) {
   const { stage4 } = analytics
 
-  // 安全な値取得ヘルパー
+  // 安全取值輔助
   const safeNum = (v) => (v === null || v === undefined ? 0 : Number(v))
 
   const metricCards = [
@@ -26,7 +26,7 @@ export default function ViewerSegments({ analytics, monthLabel }) {
     },
     {
       icon: '🎯',
-      label: '平均籃子単価',
+      label: '平均購物籃金額',
       value: `£${(safeNum(stage4.metrics?.avgBasket) || 250).toLocaleString()}`,
       sub: '全顧客平均',
     },
@@ -44,7 +44,7 @@ export default function ViewerSegments({ analytics, monthLabel }) {
         <div className="models-section-head stage4-section-head">
           <div>
             <p className="models-eyebrow">Stage 4 · 客群分層</p>
-            <h2 className="models-title">顧客セグメント分析（{monthLabel}）</h2>
+            <h2 className="models-title">顧客分群分析（{monthLabel}）</h2>
             <p className="models-subtitle">
               訓練: {(safeNum(stage4.metrics?.trainRows) || 0).toLocaleString()} 件 | テスト:{' '}
               {(safeNum(stage4.metrics?.testRows) || 0).toLocaleString()} 件 | Silhouette:{' '}
@@ -67,9 +67,9 @@ export default function ViewerSegments({ analytics, monthLabel }) {
                     </span>
                   </div>
                   <p className="segment-stats">
-                    客単 {formatCurrency(segment.avgBasket)} · {formatFrequency(segment.frequency)}
+                    客單價 {formatCurrency(segment.avgBasket)} · {formatFrequency(segment.frequency)}
                   </p>
-                  <p className="segment-story">{segment.story || '詳細なセグメント情報'}</p>
+                  <p className="segment-story">{segment.story || '詳細分群資訊'}</p>
                   <div className="segment-tags" aria-label="偏好商品類型">
                     {segment.focusProducts && segment.focusProducts.length > 0 ? (
                       segment.focusProducts.map((tag) => (
@@ -104,7 +104,7 @@ export default function ViewerSegments({ analytics, monthLabel }) {
             ))
           ) : (
             <div style={{ padding: '20px', textAlign: 'center', color: '#9ca3af' }}>
-              <p>セグメントデータが見つかりません</p>
+              <p>找不到分群資料</p>
             </div>
           )}
         </div>
@@ -130,32 +130,30 @@ export default function ViewerSegments({ analytics, monthLabel }) {
       </section>
 
       <section className="models-section" style={{ marginTop: '30px' }}>
-        <h3>セグメント分析について</h3>
+        <h3>關於分群分析</h3>
         <div style={{ fontSize: '13px', lineHeight: '1.6', color: '#6b7280' }}>
           <p>
-            顧客を購買行動パターン（購買頻度・金額・商品カテゴリ選好）に基づいて
-            11の異なるセグメントに自動分類しました。各セグメントは独特の特性を持ち、
-            カスタマイズされたマーケティング戦略を必要とします。
+            系統根據顧客的購買行為模式（購買頻率、金額、商品類別偏好）自動將顧客分成 11 個不同的族群。每個族群具有獨特特性，需採用客製化的行銷策略。
           </p>
           <p style={{ marginTop: '10px' }}>
-            <strong>ロイヤル層：</strong>
-            極めて高い購買頻度（87件/期間）と高額支出。最優先のVIP顧客です。
+            <strong>忠誠客群：</strong>
+            購買頻率極高（87 件/期間）且消費金額偏高，為最優先的 VIP 客群。
           </p>
           <p style={{ marginTop: '10px' }}>
-            <strong>VIP層・スーパーVIP層：</strong>
-            高頻度かつ高額支出。専任サポートと限定キャンペーンを推奨。
+            <strong>VIP 與超級 VIP：</strong>
+            高頻率且高消費，建議提供專屬客服與限定活動。
           </p>
           <p style={{ marginTop: '10px' }}>
-            <strong>散発高単価層・継続高単価層：</strong>
-            高額消費だが購買頻度は中程度。大口・法人顧客の可能性あり。
+            <strong>偶發高單價層・持續高單價層：</strong>
+            消費金額高但購買頻率中等，可能為大宗或企業客戶。
           </p>
           <p style={{ marginTop: '10px' }}>
-            <strong>スタンダード層：</strong>
-            全体の最大規模。バランスの取れた購買パターン。定期キャンペーン対象。
+            <strong>標準層：</strong>
+            為最大族群，購買行為均衡，適合定期行銷活動。
           </p>
           <p style={{ marginTop: '10px' }}>
-            <strong>エコノミー層・カテゴリ専門層：</strong>
-            低頻度・低単価または特定カテゴリ集中。価格戦略と専門提案を検討。
+            <strong>經濟層與類別專精層：</strong>
+            購買頻率與金額較低或集中於特定類別，建議檢視價格策略與提供專屬推薦。
           </p>
         </div>
       </section>

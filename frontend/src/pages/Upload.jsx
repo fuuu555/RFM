@@ -123,24 +123,9 @@ export default function Upload({ onComplete, onSkip }) {
 
     try {
       const response = await uploadToServer(file)
-      const pipelineResults = response?.pipeline_results ?? []
-      const failedStage = pipelineResults.find((stage) => stage.status !== 'ok')
-
-      if (failedStage) {
-        const detail =
-          failedStage.error ||
-          failedStage.stderr?.trim() ||
-          '請檢查後端日誌以取得更多資訊'
-        setError(`【${failedStage.stage}】執行失敗：${detail}`)
-        return
-      }
-
-      // 標示所有 stage 已完成並給使用者一個視覺緩衝
-      setActiveStageIdx(PIPELINE_STEPS.length)
-      setElapsedSec(TOTAL_ESTIMATED_SEC)
-      await new Promise((resolve) => setTimeout(resolve, 300))
-
-      onComplete?.(file)
+      // If backend returned preview periods, pass them to parent so Viewer can show choices
+      const preview_periods = response?.preview_periods || []
+      onComplete?.({ file, preview_periods })
     } catch (err) {
       console.error('Upload failed', err)
       setError(err?.message || '上傳失敗，請稍後再試')

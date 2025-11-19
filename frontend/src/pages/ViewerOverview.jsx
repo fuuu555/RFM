@@ -13,6 +13,14 @@ export default function ViewerOverview({
   kpis,
   renderTrend,
 }) {
+  // Safely unwrap KPI values to avoid runtime errors when API hasn't provided them yet
+  const avgSpend = (kpis && kpis.averageSpend != null) ? kpis.averageSpend : 0
+  const avgSpendTrend = (kpis && kpis.averageTrend != null) ? kpis.averageTrend : 0
+  const premiumMembers = (kpis && kpis.premiumMembers != null) ? kpis.premiumMembers : 0
+  const premiumTrend = (kpis && kpis.premiumTrend != null) ? kpis.premiumTrend : 0
+  const engagement = (kpis && kpis.engagement != null) ? kpis.engagement : 0
+  const engagementTrend = (kpis && kpis.engagementTrend != null) ? kpis.engagementTrend : 0
+  const tipValue = (tip && tip.value != null) ? tip.value : 0
   return (
     <div className="page-inner full">
       <div className="section-head">
@@ -61,7 +69,7 @@ export default function ViewerOverview({
                 <span className="tooltip-dot" style={{ background: tip.color }} />
                 <span className="tooltip-label">{tip.label}</span>
               </div>
-              <div className="tooltip-value">{tip.value.toLocaleString()}</div>
+              <div className="tooltip-value">{(tipValue).toLocaleString()}</div>
             </div>
           )}
         </div>
@@ -78,8 +86,8 @@ export default function ViewerOverview({
             <div className="kpi-title">平均消費額</div>
           </div>
           <div className="kpi-main">
-            <div className="kpi-value">${kpis.averageSpend.toLocaleString()}</div>
-            {renderTrend(kpis.averageTrend)}
+            <div className="kpi-value">${Number(avgSpend).toLocaleString()}</div>
+            {renderTrend(avgSpendTrend)}
           </div>
         </div>
 
@@ -94,8 +102,8 @@ export default function ViewerOverview({
             <div className="kpi-title">高價值會員</div>
           </div>
           <div className="kpi-main">
-            <div className="kpi-value">{kpis.premiumMembers.toLocaleString()}</div>
-            {renderTrend(kpis.premiumTrend)}
+            <div className="kpi-value">{Number(premiumMembers).toLocaleString()}</div>
+            {renderTrend(premiumTrend)}
           </div>
         </div>
 
@@ -110,8 +118,8 @@ export default function ViewerOverview({
             <div className="kpi-title">活躍率</div>
           </div>
           <div className="kpi-main">
-            <div className="kpi-value">{kpis.engagement}%</div>
-            {renderTrend(kpis.engagementTrend)}
+            <div className="kpi-value">{Number(engagement)}%</div>
+            {renderTrend(engagementTrend)}
           </div>
         </div>
       </div>

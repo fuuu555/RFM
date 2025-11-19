@@ -7,49 +7,15 @@ import ViewerSegments from './ViewerSegments'
 import ViewerOperational from './ViewerOperational'
 import ViewerShap from './ViewerShap'
 
-// 開發用假資料（當 API 取得失敗或初始顯示用）
-const buildRealtimeMock = (seed = 0) => {
-  const days = Array.from({ length: 30 }, (_, idx) => ({
-    day: idx + 1,
-    value: Math.round(2000 + Math.sin((idx + seed) / 3) * 1500 + idx * 180 + seed * 250),
-  }))
-
-  return {
-    updatedAt: '2025-11-12 02:43:57',
-    compareDate: '2025-11-11',
-    days,
-    keyMetrics: [
-      { title: '本月銷售額', value: 6242912 + seed * 12000, trend: 15.65 + seed },
-      { title: '本月訂單數', value: 5262 + seed * 80, trend: 12.36 + seed },
-      { title: '本月退貨量', value: 132 + seed * 8, trend: -3.2 + seed * 0.4 },
-      { title: '新顧客數', value: 820 + seed * 25, trend: 6.1 + seed * 0.6 },
-    ],
-  }
+// 初期表示用の空データ（APIが返るまでのプレースホルダ）
+const emptyRealtime = { updatedAt: '', compareDate: '', days: [], keyMetrics: [] }
+const INITIAL_DISPLAY = {
+  label: '',
+  totalMembers: 0,
+  regions: [],
+  kpis: {},
+  realtime: emptyRealtime,
 }
-
-const MOCK_MONTHLY_DATA = [
-  {
-    month: '2024-07',
-    label: '2024 / 07',
-    totalMembers: 12345,
-    regions: [
-      { name: '北部', pct: 45, color: '#60a5fa' },
-      { name: '中部', pct: 25, color: '#34d399' },
-      { name: '南部', pct: 20, color: '#f59e0b' },
-      { name: '東部', pct: 10, color: '#ef4444' },
-    ],
-    kpis: {
-      averageSpend: 1280,
-      averageTrend: 5.2,
-      premiumMembers: 532,
-      premiumTrend: 12.4,
-      engagement: 68,
-      engagementTrend: -1.3,
-    },
-    realtime: buildRealtimeMock(0),
-  },
-  // ... 省略 ...（其他月份資料保留 mock 即可）
-]
 
 const INITIAL_ANALYTICS = {
   refreshedAt: 'Loading...',
@@ -85,165 +51,163 @@ const INITIAL_ANALYTICS = {
 const TOTAL_PAGES = 6
 const API_BASE = 'http://localhost:8000' // API 端點
 
-export default function Viewer({ file, onReset }) {
+export default function Viewer({ file, initialPeriods = null, onReset }) {
   const [page, setPage] = useState(0)
   const [logoSrc, setLogoSrc] = useState('/aonix.png')
-  const [monthIndex, setMonthIndex] = useState(0)
+  // replaced by selectedPeriodIdx
   const [tip, setTip] = useState({ show: false, x: 0, y: 0, label: '', value: 0, color: '#000' })
   const [activeIdx, setActiveIdx] = useState(null)
   const [animatedMembers, setAnimatedMembers] = useState(0)
   
 
-// 資料用的 State（初始為 Mock，API 取得後會覆寫）
-  const [displayData, setDisplayData] = useState(MOCK_MONTHLY_DATA[0]) 
+  // 資料用的 State（初期は空データ、APIで上書き）
+  const [displayData, setDisplayData] = useState(INITIAL_DISPLAY)
   const [analyticsData, setAnalyticsData] = useState(INITIAL_ANALYTICS)
+  const [availablePeriods, setAvailablePeriods] = useState([])
+  const [selectedPeriodIdx, setSelectedPeriodIdx] = useState(0)
+  const [periodMode, setPeriodMode] = useState('month') // 'month' or 'year'
 
+  // フェッチ関数：periodを指定してレポートを取得し、状態を更新する
+  const fetchReportForPeriod = async (period = null) => {
+    try {
+      const url = period ? `${API_BASE}/report/latest?period=${encodeURIComponent(period)}` : `${API_BASE}/report/latest`
+      const res = await fetch(url)
+      if (!res.ok) {
+        console.warn('report/latest returned non-ok:', res.status)
+        return null
+      }
+      const data = await res.json()
+      return data
+    } catch (e) {
+      console.error('Failed to fetch report:', e)
+      return null
+    }
+  }
+
+  // If Upload provided initialPeriods, prefer those as initial selection immediately
   useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const res = await fetch(`${API_BASE}/report/latest`)
-        if (!res.ok) {
-          console.warn("report/latest returned non-ok:", res.status)
-          return
+    if (initialPeriods && Array.isArray(initialPeriods) && initialPeriods.length > 0) {
+      setAvailablePeriods(initialPeriods)
+      setSelectedPeriodIdx(0)
+      // fetch report for the latest provided period right away
+      (async () => {
+        const p = periodMode === 'month' ? initialPeriods[0] : initialPeriods[0].slice(0, 4)
+        try {
+          const res = await fetch(`${API_BASE}/report/latest?period=${encodeURIComponent(p)}`)
+          if (res.ok) {
+            const data = await res.json()
+            if (data) applyReportData(data)
+          } else {
+            console.warn('Preview report request failed', res.status)
+          }
+        } catch (e) {
+          console.warn('Failed to fetch preview report for uploaded file', e)
         }
-        const data = await res.json()
+      })()
+    }
+  }, [initialPeriods])
 
-        // Safe helpers
-        const safeNum = (v) => (v === null || v === undefined ? null : Number(v))
-        const safeStr = (v) => (v === null || v === undefined ? null : String(v))
+  // レスポンスを解析して状態を更新するヘルパ（先に定義して useEffect から参照可能にする）
+  function applyReportData(data) {
+    const safeNum = (v) => (v === null || v === undefined ? null : Number(v))
+    const overview = data.overview || {}
+    const stage4 = data.stage4 || {}
+    const stage4Metrics = stage4.metrics || { trainRows: null, testRows: null, silhouette: null, avgBasket: null, overallTrend: null }
+    const safeStage4Metrics = {
+      trainRows: safeNum(stage4Metrics.trainRows),
+      testRows: safeNum(stage4Metrics.testRows),
+      silhouette: safeNum(stage4Metrics.silhouette),
+      avgBasket: safeNum(stage4Metrics.avgBasket),
+      overallTrend: safeNum(stage4Metrics.overallTrend)
+    }
 
-        // Overview KPIs
-        const overview = data.overview || {}
-        const kpisFromOverview = overview.kpis || {}
-        const kpis = {
-          totalSales: safeNum(kpisFromOverview.totalSales),
-          salesTrend: safeNum(kpisFromOverview.salesTrend),
-          totalOrders: safeNum(kpisFromOverview.totalOrders),
-          ordersTrend: safeNum(kpisFromOverview.ordersTrend),
-          totalMembers: safeNum(kpisFromOverview.totalMembers),
-          membersTrend: safeNum(kpisFromOverview.membersTrend),
-          averageSpend: safeNum(kpisFromOverview.averageSpend),
-          averageTrend: safeNum(kpisFromOverview.averageTrend),
-          engagement: safeNum(kpisFromOverview.engagement),
-          engagementTrend: safeNum(kpisFromOverview.engagementTrend),
-          premiumMembers: safeNum(kpisFromOverview.premiumMembers),
-          premiumTrend: safeNum(kpisFromOverview.premiumTrend)
-        }
+    // SHAP data
+    const shapImages = data.shap_images || { summary: null, beeswarm: null, models: {} }
+    const shapImportance = data.shap_importance || {}
+    const shapValues = data.shap_values || {}
 
-        // Stage4 metrics & segments
-        const stage4 = data.stage4 || {}
-        const stage4Metrics = stage4.metrics || { trainRows: null, testRows: null, silhouette: null, avgBasket: null, overallTrend: null }
-        const safeStage4Metrics = {
-          trainRows: safeNum(stage4Metrics.trainRows),
-          testRows: safeNum(stage4Metrics.testRows),
-          silhouette: safeNum(stage4Metrics.silhouette),
-          avgBasket: safeNum(stage4Metrics.avgBasket),
-          overallTrend: safeNum(stage4Metrics.overallTrend)
-        }
-        const stage4Segments = Array.isArray(stage4.segments) ? stage4.segments : []
+    setAnalyticsData((prev) => ({
+      ...prev,
+      refreshedAt: new Date().toISOString(),
+      stage3: data.stage3 || prev.stage3,
+      stage4: {
+        metrics: safeStage4Metrics,
+        segments: Array.isArray(stage4.segments) ? stage4.segments : []
+      },
+      stage5: { bestModel: null, models: [] },
+      stage6: { models: [] },
+      shap_images: shapImages,
+      shap_importance: shapImportance,
+      shap_values: shapValues
+    }))
 
-        // Stage5 evaluation -> normalize to array of models (accuracy values only)
-        const evals = data.evaluation || {}
-        const stage5Eval = evals.stage5 || {}
-        const models = []
-        if (stage5Eval && typeof stage5Eval === 'object') {
-          Object.entries(stage5Eval).forEach(([name, val]) => {
-            if (val === null || val === undefined) {
-              models.push({ name, accuracy: null, f1_weighted: null })
-            } else if (typeof val === 'number') {
-              models.push({ name, accuracy: Number(val), f1_weighted: null })
-            } else if (typeof val === 'object') {
-              models.push({
-                name,
-                accuracy: val.accuracy != null ? Number(val.accuracy) : null,
-                f1_weighted: val.f1_weighted != null ? Number(val.f1_weighted) : null
-              })
-            } else {
-              models.push({ name, accuracy: null, f1_weighted: null })
-            }
-          })
-        }
+    if (overview && overview.kpis) {
+      setDisplayData((prev) => ({
+        ...prev,
+        label: overview._period || overview.lastDate || prev.label,
+        totalMembers: overview.kpis.totalMembers || prev.totalMembers,
+        regions: overview.regions || prev.regions,
+        kpis: {
+          averageSpend: overview.kpis.averageSpend,
+          averageTrend: overview.kpis.averageTrend,
+          premiumMembers: overview.kpis.premiumMembers,
+          premiumTrend: overview.kpis.premiumTrend || 0,
+          engagement: overview.kpis.engagement,
+          engagementTrend: overview.kpis.engagementTrend,
+        },
+        realtime: {
+          updatedAt: overview.lastDate || prev.realtime.updatedAt,
+          compareDate: prev.realtime.compareDate,
+          days: overview.chart || prev.realtime.days,
+          keyMetrics: [
+            { title: '本月銷售額', value: overview.kpis.totalSales, trend: overview.kpis.salesTrend },
+            { title: '本月訂單數', value: overview.kpis.totalOrders, trend: overview.kpis.ordersTrend },
+            { title: '本月活躍會員', value: overview.kpis.totalMembers, trend: overview.kpis.membersTrend },
+            { title: '高價值會員', value: overview.kpis.premiumMembers, trend: overview.kpis.premiumTrend || 0 },
+          ],
+        },
+      }))
+    }
+  }
 
-        // Stage6 evaluation (similar format to stage5)
-        const stage6Eval = evals.stage6 || {}
-        const stage6Models = []
-        if (stage6Eval && typeof stage6Eval === 'object') {
-          Object.entries(stage6Eval).forEach(([name, val]) => {
-            if (val === null || val === undefined) {
-              stage6Models.push({ name, accuracy: null })
-            } else if (typeof val === 'number') {
-              stage6Models.push({ name, accuracy: Number(val) })
-            } else if (typeof val === 'object') {
-              stage6Models.push({
-                name,
-                accuracy: val.accuracy != null ? Number(val.accuracy) : null
-              })
-            } else {
-              stage6Models.push({ name, accuracy: null })
-            }
-          })
-        }
-
-        // SHAP images (may be null)
-        const shapImages = data.shap_images || { summary: null, beeswarm: null, models: {} }
-
-        // SHAP importance and values
-        const shapImportance = data.shap_importance || {}
-        const shapValues = data.shap_values || {}
-
-        setAnalyticsData((prev) => ({
-          ...prev,
-          refreshedAt: new Date().toISOString(),
-          stage3: data.stage3 || prev.stage3,
-          stage4: {
-            metrics: safeStage4Metrics,
-            segments: stage4Segments
-          },
-          stage5: {
-            bestModel: null,
-            models
-          },
-          stage6: {
-            models: stage6Models
-          },
-          shap_images: shapImages,
-          shap_importance: shapImportance,
-          shap_values: shapValues
-        }))
-        
-        // API データで displayData と kpis を更新
-        if (overview && overview.kpis) {
-          setDisplayData((prev) => ({
-            ...prev,
-            totalMembers: overview.kpis.totalMembers || prev.totalMembers,
-            regions: overview.regions || prev.regions,
-            kpis: {
-              averageSpend: overview.kpis.averageSpend,
-              averageTrend: overview.kpis.averageTrend,
-              premiumMembers: overview.kpis.premiumMembers,
-              premiumTrend: overview.kpis.premiumTrend || 0,
-              engagement: overview.kpis.engagement,
-              engagementTrend: overview.kpis.engagementTrend,
-            },
-            realtime: {
-              updatedAt: overview.lastDate || prev.realtime.updatedAt,
-              compareDate: prev.realtime.compareDate,
-              days: overview.chart || prev.realtime.days,
-              keyMetrics: [
-                { title: '本月銷售額', value: overview.kpis.totalSales, trend: overview.kpis.salesTrend },
-                { title: '本月訂單數', value: overview.kpis.totalOrders, trend: overview.kpis.ordersTrend },
-                { title: '本月活躍會員', value: overview.kpis.totalMembers, trend: overview.kpis.membersTrend },
-                { title: '高價值會員', value: overview.kpis.premiumMembers, trend: overview.kpis.premiumTrend || 0 },
-              ],
-            },
-          }))
-        }
-      } catch (e) {
-        console.error("Failed to fetch report:", e)
+  // 初回マウント時：まず available_periods を取得し、最新期間でデータを取得する
+  useEffect(() => {
+    let mounted = true
+    const init = async () => {
+      const base = await fetchReportForPeriod()
+      if (!mounted) return
+      const periods = (base && base.overview && Array.isArray(base.overview.available_periods)) ? base.overview.available_periods : []
+      setAvailablePeriods(periods)
+      if (periods.length > 0) {
+        setSelectedPeriodIdx(0)
+        const data = await fetchReportForPeriod(periods[0])
+        if (!mounted) return
+        if (data) applyReportData(data)
+      } else if (base) {
+        // 期間情報がなければそのまま全体レポートを適用
+        applyReportData(base)
       }
     }
-    fetchData()
+    init()
+    return () => { mounted = false }
   }, [])
+
+  // 選択期間が変更されたら再取得（modeに応じて月 or 年を選択）
+  useEffect(() => {
+    if (!availablePeriods || availablePeriods.length === 0) return
+    const years = Array.from(new Set(availablePeriods.map((p) => p.slice(0, 4))))
+    const target = periodMode === 'month' ? availablePeriods[selectedPeriodIdx] : years[selectedPeriodIdx]
+    let mounted = true
+    const doFetch = async () => {
+      const data = await fetchReportForPeriod(target)
+      if (!mounted) return
+      if (data) applyReportData(data)
+    }
+    doFetch()
+    return () => { mounted = false }
+  }, [selectedPeriodIdx, availablePeriods, periodMode])
+
+  
   const { totalMembers, regions, kpis, realtime } = displayData
   const monthLabel = displayData.label
 
@@ -291,7 +255,7 @@ export default function Viewer({ file, onReset }) {
   useEffect(() => {
     setTip((t) => ({ ...t, show: false }))
     setActiveIdx(null)
-  }, [monthIndex])
+  }, [selectedPeriodIdx])
 
   const hexToRgb = (hex) => {
     const h = hex.replace('#', '')
@@ -431,15 +395,37 @@ export default function Viewer({ file, onReset }) {
           <span>第 {page + 1} / {TOTAL_PAGES} 頁</span>
           <span className="dot" aria-hidden />
           <div className="month-picker">
-            <label htmlFor="month-select-header">月份</label>
+            <label htmlFor="month-select-header">期間</label>
+            <div className="period-mode-toggle" style={{ display: 'inline-flex', gap: 8, marginRight: 8 }}>
+              <button
+                className={`mode-btn ${periodMode === 'month' ? 'active' : ''}`}
+                onClick={() => { setPeriodMode('month'); setSelectedPeriodIdx(0) }}
+                type="button"
+              >月</button>
+              <button
+                className={`mode-btn ${periodMode === 'year' ? 'active' : ''}`}
+                onClick={() => { setPeriodMode('year'); setSelectedPeriodIdx(0) }}
+                type="button"
+              >年</button>
+            </div>
             <select
               id="month-select-header"
-              value={monthIndex}
-              onChange={(e) => setMonthIndex(Number(e.target.value))}
+              value={selectedPeriodIdx}
+              onChange={(e) => setSelectedPeriodIdx(Number(e.target.value))}
             >
-              {MOCK_MONTHLY_DATA.map((item, idx) => (
-                <option key={item.month} value={idx}>{item.label}</option>
-              ))}
+              {availablePeriods && availablePeriods.length > 0 ? (
+                periodMode === 'month' ? (
+                  availablePeriods.map((p, idx) => (
+                    <option key={p} value={idx}>{p.replace('-', ' / ')}</option>
+                  ))
+                ) : (
+                  Array.from(new Set(availablePeriods.map((p) => p.slice(0, 4)))).map((y, idx) => (
+                    <option key={y} value={idx}>{y}</option>
+                  ))
+                )
+              ) : (
+                <option value={0}>全期間</option>
+              )}
             </select>
           </div>
         </div>

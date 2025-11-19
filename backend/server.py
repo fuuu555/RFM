@@ -17,6 +17,7 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.append(str(REPO_ROOT))
 
 from data_layer.pipeline import run_all_stages
+import threading
 
 app = FastAPI(title="Upload Service")
 
@@ -67,15 +68,43 @@ async def upload_file(file: UploadFile = File(...)):
         destination.unlink(missing_ok=True)
         raise HTTPException(status_code=500, detail="寫入檔案失敗") from exc
     
+    # After saving the uploaded CSV, compute preview periods from the uploaded file
+    preview_periods = []
     try:
-        pipeline_output = await run_in_threadpool(lambda: run_all_stages(stop_on_error=False))
-    except Exception as exc:
-        pipeline_output = {"stages": [{"stage": "pipeline", "status": "error", "error": str(exc)}], "total_duration_sec": 0.0}
+        import pandas as _pd
+        if destination.exists():
+            df_upload = _pd.read_csv(destination, usecols=[c for c in _pd.read_csv(destination, nrows=0).columns if c.lower() in ["invoicedate", "invoice_date", "invoice date"]] if True else None)
+            # fallback: try InvoiceDate present
+            if df_upload is None or df_upload.shape[1] == 0:
+                df_upload = _pd.read_csv(destination)
+            if "InvoiceDate" in df_upload.columns or "InvoiceDate" in [c for c in df_upload.columns]:
+                if "InvoiceDate" not in df_upload.columns:
+                    # try to find a column case-insensitively
+                    for c in df_upload.columns:
+                        if c.lower() == "invoicedate":
+                            df_upload.rename(columns={c: "InvoiceDate"}, inplace=True)
+                            break
+                df_upload["InvoiceDate"] = _pd.to_datetime(df_upload["InvoiceDate"], errors='coerce')
+                if not df_upload["InvoiceDate"].isna().all():
+                    df_upload["_period"] = df_upload["InvoiceDate"].dt.to_period('M').astype(str)
+                    preview_periods = sorted(df_upload["_period"].dropna().unique().tolist(), reverse=True)
+    except Exception as e:
+        print(f"Warning: failed to compute preview periods from uploaded file: {e}")
+
+    # Start the heavy pipeline in background thread so upload can return quickly
+    def _run_pipeline_background():
+        try:
+            run_all_stages(stop_on_error=False)
+        except Exception as exc:
+            print(f"Background pipeline failed: {exc}")
+
+    threading.Thread(target=_run_pipeline_background, daemon=True).start()
 
     return {
         "message": "上傳成功",
         "saved_as": TARGET_FILENAME,
-        "pipeline_results": pipeline_output["stages"],
+        "preview_periods": preview_periods,
+        "pipeline_started": True,
     }
 # ... (冒頭のimportなどはそのまま) ...
 
@@ -85,8 +114,21 @@ def calculate_trend(current, previous):
         return 0.0
     return round(((current - previous) / previous) * 100, 1)
 
+
+# 安全に整数へ変換するユーティリティ
+def _to_int_safe(val, default=0):
+    try:
+        return int(val)
+    except Exception:
+        try:
+            return int(float(val))
+        except Exception:
+            return default
+
 # --- Overview (Page 1 & 2) 集計 ---
-def analyze_overview():
+def analyze_overview(period: str | None = None):
+    """Compute overview KPIs. If period provided (format 'YYYY-MM' or 'YYYY'), filter InvoiceDate to that period.
+    Also compute month-over-month or year-over-year trends by comparing with previous period."""
     csv_path = ARTIFACTS_DIR / "stage2_df_cleaned.csv"
     if not csv_path.exists(): return None
     
@@ -94,59 +136,84 @@ def analyze_overview():
         df = pd.read_csv(csv_path)
         if "InvoiceDate" in df.columns:
             df["InvoiceDate"] = pd.to_datetime(df["InvoiceDate"])
+        # build available periods (monthly) for frontend selector
+        df["_period"] = df["InvoiceDate"].dt.to_period('M').astype(str)
+        periods = sorted(df["_period"].unique().tolist(), reverse=True)
         
-        # --- 以時間軸切分（趨勢計算用） ---
+        # Prepare data for current and previous period
+        df_cur = df  # default: full dataset
+        df_prev = None
+        
+        if period:
+            # Filter to requested period
+            if len(period) == 4:  # year only (YYYY)
+                df_cur = df[df["InvoiceDate"].dt.year.astype(str) == period]
+                # Previous year for comparison
+                prev_year = str(int(period) - 1)
+                df_prev = df[df["InvoiceDate"].dt.year.astype(str) == prev_year]
+            else:  # month (YYYY-MM)
+                df_cur = df[df["_period"] == period]
+                # Previous month for comparison
+                try:
+                    current = pd.Period(period, freq='M')
+                    prev = current - 1
+                    prev_period_str = str(prev)
+                    df_prev = df[df["_period"] == prev_period_str]
+                except Exception:
+                    df_prev = None
+        else:
+            # No period specified: use last 30 days vs previous 30 days (for trends)
+            last_date = df["InvoiceDate"].max()
+            cutoff_current = last_date - pd.Timedelta(days=30)
+            cutoff_previous = cutoff_current - pd.Timedelta(days=30)
+            df_cur = df[df["InvoiceDate"] > cutoff_current]
+            df_prev = df[(df["InvoiceDate"] <= cutoff_current) & (df["InvoiceDate"] > cutoff_previous)]
+        
         last_date = df["InvoiceDate"].max()
-        cutoff_current = last_date - pd.Timedelta(days=30)
-        cutoff_previous = cutoff_current - pd.Timedelta(days=30)
-
-        # 今期 (直近30日)
-        df_cur = df[df["InvoiceDate"] > cutoff_current]
-        # 前期（往前 30 日）
-        df_prev = df[(df["InvoiceDate"] <= cutoff_current) & (df["InvoiceDate"] > cutoff_previous)]
-
-        # 1. KPI計算 (今期 vs 前期)
+        
+        # 1. KPI計算 (current vs previous)
         sales_cur = int(df_cur["TotalPrice"].sum())
-        sales_prev = int(df_prev["TotalPrice"].sum())
+        sales_prev = int(df_prev["TotalPrice"].sum()) if df_prev is not None and len(df_prev) > 0 else 0
         
         orders_cur = int(df_cur["InvoiceNo"].nunique())
-        orders_prev = int(df_prev["InvoiceNo"].nunique())
+        orders_prev = int(df_prev["InvoiceNo"].nunique()) if df_prev is not None and len(df_prev) > 0 else 0
 
         members_cur = int(df_cur["CustomerID"].nunique())
-        members_prev = int(df_prev["CustomerID"].nunique())
+        members_prev = int(df_prev["CustomerID"].nunique()) if df_prev is not None and len(df_prev) > 0 else 0
 
         # 平均消費額
         avg_spend_cur = int(sales_cur / members_cur) if members_cur else 0
-        avg_spend_prev = int(sales_prev / members_prev) if members_prev else 0
+        avg_spend_prev = int(sales_prev / members_prev) if members_prev and members_prev > 0 else 0
 
-        # 活躍率（整體會員中，近 30 日有購買者所占比例）
+        # 活躍率（整體會員中，有購買者所占比例）
         total_members_all_time = df["CustomerID"].nunique()
         engagement_rate = round((members_cur / total_members_all_time) * 100, 1) if total_members_all_time else 0
         
-        # 之前期間的活躍率（簡易計算）
-        total_members_at_prev = df[df["InvoiceDate"] <= cutoff_current]["CustomerID"].nunique()
-        engagement_prev = round((members_prev / total_members_at_prev) * 100, 1) if total_members_at_prev else 0
+        # 前期の活躍率
+        engagement_prev = round((members_prev / total_members_all_time) * 100, 1) if members_prev and total_members_all_time else 0
 
         # 2. 地區分布 (Country) - 全期間匯總
-        country_counts = df["Country"].value_counts(normalize=True) * 100
+        country_counts = df_cur["Country"].value_counts(normalize=True) * 100
         regions = []
         colors = ["#60a5fa", "#34d399", "#f59e0b", "#ef4444", "#a855f7"]
         for i, (country, pct) in enumerate(country_counts.head(4).items()):
-            regions.append({"name": country, "pct": round(pct, 1), "color": colors[i % len(colors)]})
+            regions.append({"name": country, "pct": round(float(pct), 1), "color": colors[i % len(colors)]})
         
         # ★Premium Membersの計算
-        df_lifetime = df.groupby('CustomerID')['TotalPrice'].sum().sort_values(ascending=False)
+        df_lifetime = df_cur.groupby('CustomerID')['TotalPrice'].sum().sort_values(ascending=False)
         # 上位20%の顧客を抽出
-        top_20_percent = int(total_members_all_time * 0.2)
-        premium_members = int(df_lifetime.head(top_20_percent).count())
+        top_20_percent = int(members_cur * 0.2) if members_cur > 0 else 0
+        premium_members = int(df_lifetime.head(top_20_percent).count()) if top_20_percent > 0 else 0
         
         # Premium Members（前期比較）
-        df_lifetime_prev = df[df["InvoiceDate"] <= cutoff_current].groupby('CustomerID')['TotalPrice'].sum().sort_values(ascending=False)
-        total_members_prev_lifetime = df[df["InvoiceDate"] <= cutoff_current]["CustomerID"].nunique()
-        top_20_percent_prev = int(total_members_prev_lifetime * 0.2)
-        premium_members_prev = int(df_lifetime_prev.head(top_20_percent_prev).count()) if total_members_prev_lifetime > 0 else 0
+        if df_prev is not None and len(df_prev) > 0:
+            df_lifetime_prev = df_prev.groupby('CustomerID')['TotalPrice'].sum().sort_values(ascending=False)
+            top_20_percent_prev = int(members_prev * 0.2) if members_prev > 0 else 0
+            premium_members_prev = int(df_lifetime_prev.head(top_20_percent_prev).count()) if top_20_percent_prev > 0 else 0
+        else:
+            premium_members_prev = 0
 
-        # 3. 時系列チャート (直近30日)
+        # 3. 時系列チャート (current period)
         daily = df_cur.groupby(df_cur["InvoiceDate"].dt.date)["TotalPrice"].sum().reset_index()
         days_data = [{"day": str(row.InvoiceDate), "value": int(row.TotalPrice)} for _, row in daily.iterrows()]
 
@@ -167,29 +234,27 @@ def analyze_overview():
             },
             "regions": regions,
             "chart": days_data,
-            "lastDate": str(last_date)
+            "lastDate": str(last_date),
+            "available_periods": periods
         }
     except Exception as e:
         print(f"Error analyzing overview: {e}")
         return None
 
-# 顧客分群命名對照（基於 RFM 分析與購買行為）
+# 顧客分群命名對照（RFM分析に基づく業界標準セグメント）
 SEGMENT_NAMES = {
-    0: "經濟層",  # 低頻率 / 中等消費
-    1: "標準層",  # 中頻率 / 中等消費（最大族群）
-    2: "VIP 層",  # 高頻率 / 高消費
-    3: "超級 VIP 層",  # 極高頻率 / 極高消費
-    4: "偶發高單價層",  # 低頻率 / 高消費
-    5: "持續高單價層",  # 中頻率 / 高消費
-    6: "類別專精層(4)",  # 某類別集中
-    7: "類別專精層(1)",
-    8: "忠誠客群",  # 極高頻率 / 高消費
-    9: "類別專精層(0)",
-    10: "類別專精層(3)",
+    0: "Champions",              # 最高価値顧客 (R=4, F/M=4)
+    1: "Loyal Customers",        # 忠実顧客 (R≥3, F≥3)
+    2: "At Risk",                # リスク層 (R=1, F/M≥3)
+    3: "Lost",                   # 離脱顧客 (R=1, F≤2, M≤2)
+    4: "Need Attention",         # 要注視 (R=2, F/M≥3)
+    5: "Promising",              # 有望層 (R≥3, F/M=1)
+    6: "Big Spenders",           # 高額購買者 (M≥4)
+    7: "Standard",               # 標準層 (その他)
 }
 
 # --- Stage 4 集計 (リピート日数とSilhouetteの読み込みロジックを整理) ---
-def analyze_stage4_segments():
+def analyze_stage4_segments(period: str | None = None):
     import json # JSONを扱うために関数内でimport
     
     csv_path = ARTIFACTS_DIR / "stage4_selected_customers_train.csv"
@@ -199,6 +264,20 @@ def analyze_stage4_segments():
         return None     
 
     df = pd.read_csv(csv_path)
+    # If period filter provided, reduce to customers active in that period
+    if period:
+        try:
+            if trans_path.exists():
+                df_trans = pd.read_csv(trans_path)
+                df_trans["InvoiceDate"] = pd.to_datetime(df_trans["InvoiceDate"])
+                df_trans["_period"] = df_trans["InvoiceDate"].dt.to_period('M').astype(str)
+                if len(period) == 4:
+                    active_cust = df_trans[df_trans["InvoiceDate"].dt.year.astype(str) == period]["CustomerID"].unique()
+                else:
+                    active_cust = df_trans[df_trans["_period"] == period]["CustomerID"].unique()
+                df = df[df["CustomerID"].isin(active_cust)]
+        except Exception:
+            pass
     total_customers = len(df)
     if total_customers == 0:
         return None
@@ -227,8 +306,8 @@ def analyze_stage4_segments():
         try:
             with open(metrics_path, "r", encoding="utf-8") as f:
                 data = json.load(f)
-                # Stage 4の出力ファイル名 (stage4_customer_segmentation.py) に合わせる
-                sil_score = round(data.get("silhouette_score", 0.20), 3) 
+                # Accept either 'silhouette' or older 'silhouette_score' keys
+                sil_score = round(data.get("silhouette", data.get("silhouette_score", 0.20)), 3)
                 test_rows = data.get("test_rows", 0)
         except Exception as e:
             print(f"Warning: Failed to load stage4_metrics.json: {e}")
@@ -250,6 +329,36 @@ def analyze_stage4_segments():
     avg_basket_global = metrics["avgBasket"]
     avg_freq_global = df["count"].mean()
     
+    # Compute previous-period customer cluster counts for trend calculation
+    prev_cluster_counts = {}
+    try:
+        if trans_path.exists():
+            df_trans = pd.read_csv(trans_path)
+            df_trans["InvoiceDate"] = pd.to_datetime(df_trans["InvoiceDate"])
+            df_trans["_period"] = df_trans["InvoiceDate"].dt.to_period('M').astype(str)
+            prev_customers = []
+            if period:
+                if len(period) == 4:
+                    prev_period = str(int(period) - 1)
+                    prev_customers = df_trans[df_trans["InvoiceDate"].dt.year.astype(str) == prev_period]["CustomerID"].unique()
+                else:
+                    try:
+                        current = pd.Period(period, freq='M')
+                        prev = current - 1
+                        prev_customers = df_trans[df_trans["_period"] == str(prev)]["CustomerID"].unique()
+                    except Exception:
+                        prev_customers = []
+            else:
+                last_date = df_trans["InvoiceDate"].max()
+                cutoff_current = last_date - pd.Timedelta(days=30)
+                cutoff_previous = cutoff_current - pd.Timedelta(days=30)
+                prev_customers = df_trans[(df_trans["InvoiceDate"] <= cutoff_current) & (df_trans["InvoiceDate"] > cutoff_previous)]["CustomerID"].unique()
+
+            if len(prev_customers) > 0:
+                prev_cluster_counts = df[df["CustomerID"].isin(prev_customers)].groupby("cluster").size().to_dict()
+    except Exception:
+        prev_cluster_counts = {}
+
     for cluster_id, group in grouped:
         count = len(group)
         share = round((count / total_customers) * 100, 1)
@@ -269,7 +378,7 @@ def analyze_stage4_segments():
         top_cat_name = f"Category {top_cat_idx}"
         
         # セグメント名を取得（定義済みマッピングから）
-        segment_name = SEGMENT_NAMES.get(int(cluster_id), f"Cluster {cluster_id}")
+        segment_name = SEGMENT_NAMES.get(_to_int_safe(cluster_id), f"Cluster {cluster_id}")
 
         # ストーリー生成ロジック（詳細化）
         story = "一般顧客群"
@@ -293,18 +402,23 @@ def analyze_stage4_segments():
             story = "標準型顧客，購買行為均衡，佔整體多數。"
 
         color_palette = ["#2563eb", "#10b981", "#f59e0b", "#a855f7", "#ef4444", "#ec4899", "#14b8a6", "#8b5cf6", "#d97706", "#06b6d4", "#f43f5e"]
-        segment_color = color_palette[int(cluster_id) % len(color_palette)]
+        segment_color = color_palette[_to_int_safe(cluster_id) % len(color_palette)]
+
+        # compute trend vs previous period for this cluster
+        prev_count = int(prev_cluster_counts.get(cluster_id, 0)) if prev_cluster_counts else 0
+        trend_val = calculate_trend(count, prev_count)
+        trend_label = f"+{trend_val}%" if trend_val >= 0 else f"{trend_val}%"
 
         segments.append({
             "name": segment_name,
-            "clusterId": int(cluster_id),
+            "clusterId": _to_int_safe(cluster_id),
             "share": share,
             "count": int(count),
             "avgBasket": avg_basket,
             "totalSpend": total_spend,
             "frequency": f"{freq:.1f}",
-            "trend": 0,
-            "trendLabel": "-",
+            "trend": trend_val,
+            "trendLabel": trend_label,
             "story": story,
             "focusProducts": [f"{top_cat_name} ({top_cat_pct}%)"],
             "color": segment_color
@@ -315,7 +429,7 @@ def analyze_stage4_segments():
 
 
 # --- Stage 3 集計 (修正版：価格と返品率を追加) ---
-def analyze_stage3_products():
+def analyze_stage3_products(period: str | None = None):
     map_path = ARTIFACTS_DIR / "stage3_desc_to_prod_cluster.csv"
     trans_path = ARTIFACTS_DIR / "stage2_df_cleaned.csv" # 取引データも必要
     
@@ -341,6 +455,17 @@ def analyze_stage3_products():
         
         # 商品ごとに平均単価と総返品数を計算しておく
         if not df_trans.empty:
+            # apply period filter when provided
+            if period:
+                try:
+                    df_trans["InvoiceDate"] = pd.to_datetime(df_trans["InvoiceDate"])
+                    df_trans["_period"] = df_trans["InvoiceDate"].dt.to_period('M').astype(str)
+                    if len(period) == 4:
+                        df_trans = df_trans[df_trans["InvoiceDate"].dt.year.astype(str) == period]
+                    else:
+                        df_trans = df_trans[df_trans["_period"] == period]
+                except Exception:
+                    pass
             prod_stats = df_trans.groupby("Description").agg({
                 "UnitPrice": "mean",
                 "Quantity": "sum",
@@ -372,7 +497,7 @@ def analyze_stage3_products():
                 return_rate = round((total_c / (total_q + total_c)) * 100, 1)
 
             clusters.append({
-                "id": int(pid),
+                "id": _to_int_safe(pid),
                 "name": f"Product Group {pid}",
                 "share": share,
                 "avgPrice": avg_price,       # 計算結果
@@ -388,11 +513,11 @@ def analyze_stage3_products():
         return None
 
 @app.get("/report/latest")
-def get_latest_report():
+def get_latest_report(period: str | None = None):
     try:
-        overview = analyze_overview()
-        stage3 = analyze_stage3_products()
-        stage4 = analyze_stage4_segments()
+        overview = analyze_overview(period=period)
+        stage3 = analyze_stage3_products(period=period)
+        stage4 = analyze_stage4_segments(period=period)
 
         eval5 = None
         eval6 = None

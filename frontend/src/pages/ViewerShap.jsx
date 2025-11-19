@@ -60,9 +60,9 @@ export default function ViewerShap({ analytics }) {
         <div className="shap-section-head">
           <div>
             <p className="shap-eyebrow">Stage 7 · Model Explainability</p>
-            <h2 className="shap-title">SHAP Feature Importance Analysis</h2>
+            <h2 className="shap-title">SHAP特徵重要性分析</h2>
             <p className="shap-subtitle">
-              Understand which features drive model predictions. Higher importance = stronger influence on model decisions.
+              理解哪些特徵驅動模型預測。重要性越高 = 對模型決策的影響力越強。
             </p>
           </div>
           <div className="shap-pill">AI-Powered Interpretability</div>
@@ -86,7 +86,7 @@ export default function ViewerShap({ analytics }) {
       <section className="shap-content">
         {/* Left: Feature Importance Bar Chart */}
         <div className="shap-importance-panel">
-          <h3 className="panel-title">Feature Importance Ranking</h3>
+          <h3 className="panel-title">特徵重要性排序</h3>
           <div className="importance-list">
             {normalizedImportance.length > 0 ? (
               normalizedImportance.map((item, idx) => (
@@ -141,7 +141,7 @@ export default function ViewerShap({ analytics }) {
           {/* SHAP Images */}
           {(modelImages.bar || modelImages.plot) && (
             <div className="shap-images-container">
-              <h3 className="panel-title">Visual Analysis</h3>
+              <h3 className="panel-title">視覺分析</h3>
               
               {modelImages.bar && (
                 <div className="shap-image-wrapper">
@@ -170,7 +170,7 @@ export default function ViewerShap({ analytics }) {
           {/* Sample SHAP Values Table */}
           {currentModelValues.length > 0 && (
             <div className="shap-values-container">
-              <h3 className="panel-title">Sample Predictions</h3>
+              <h3 className="panel-title">樣本預測</h3>
               <div className="shap-table-wrapper">
                 <table className="shap-values-table">
                   <thead>
@@ -209,7 +209,7 @@ export default function ViewerShap({ analytics }) {
 
       {/* Insights Section */}
       <section className="shap-insights">
-        <h3>Key Insights</h3>
+        <h3>關鍵洞察</h3>
         <div className="insights-grid">
             <div className="insight-card">
               <div className="insight-icon">📊</div>

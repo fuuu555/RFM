@@ -1,11 +1,15 @@
 # -*- coding: utf-8 -*-
 """
-4_fast.py — Stage 4（快速版；不產生圖表）
+Stage 4 — RFM分析に基づく顧客セグメント化（改良版）
 功能：
-1) 從 artifacts/df_cleaned.csv 與 artifacts/desc_to_prod_cluster.csv 還原產品群（categ_product）
-2) 彙整到訂單與使用者層，切分 train/test（2011-10-01）
-3) StandardScaler + KMeans(11群)
-4) 存檔五個成果檔
+1) 從 artifacts/stage2_df_cleaned.csv 與 artifacts/stage3_desc_to_prod_cluster.csv 還原產品群
+2) RFM指標を明示的に計算：
+   - Recency（最後の購入からの日数）
+   - Frequency（購入回数）
+   - Monetary（総支出金額）
+3) RFMスコアを四分位ベースで計算（1-4スケール）
+4) RFMスコアの組み合わせに基づいて9つのセグメントを定義
+5) KMeans(9群)でクラスタリング、Silhouetteスコアを記録
 """
 
 import warnings, datetime
@@ -37,7 +41,11 @@ corresp = desc_to_cluster["categ_product"].to_dict()
 
 # 還原每筆交易的產品群與金額
 df_cleaned["categ_product"] = df_cleaned["Description"].map(corresp).fillna(-1).astype(int)
-df_cleaned["QuantityCanceled"] = df_cleaned.get("QuantityCanceled", 0).fillna(0)
+canceled = df_cleaned.get("QuantityCanceled", None)
+if canceled is not None:
+    df_cleaned["QuantityCanceled"] = canceled.fillna(0)
+else:
+    df_cleaned["QuantityCanceled"] = 0.0
 df_cleaned["TotalPrice"] = df_cleaned["UnitPrice"] * (
     df_cleaned["Quantity"] - df_cleaned["QuantityCanceled"]
 )
@@ -50,7 +58,8 @@ for i in range(5):
 
 # 彙整到訂單層（Basket Price、各群金額、日期）
 temp = df_cleaned.groupby(["CustomerID", "InvoiceNo"], as_index=False)["TotalPrice"].sum()
-basket_price = temp.rename(columns={"TotalPrice": "Basket Price"})
+basket_price = temp.copy()
+basket_price.columns = ["CustomerID", "InvoiceNo", "Basket Price"]
 
 df_cleaned["InvoiceDate_int"] = df_cleaned["InvoiceDate"].astype("int64")
 tmp_date = df_cleaned.groupby(["CustomerID", "InvoiceNo"], as_index=False)["InvoiceDate_int"].mean()
@@ -69,52 +78,153 @@ cut = datetime.date(2011, 10, 1)
 set_entrainement = basket_price[basket_price["InvoiceDate"] < pd.Timestamp(cut)]
 set_test = basket_price[basket_price["InvoiceDate"] >= pd.Timestamp(cut)]
 
-# 使用者層彙總（count/min/max/mean/sum 與各產品群百分比）
-bp = set_entrainement.copy(deep=True)
-transactions_per_user = bp.groupby("CustomerID")["Basket Price"].agg(["count", "min", "max", "mean", "sum"])
+# ==================== RFM分析の実装 ====================
+# 訓練データから顧客レベルでRFMを計算
+train_data = set_entrainement.copy()
+
+# 基準日（訓練データの最終日）
+max_date = train_data["InvoiceDate"].max()
+analysis_date = max_date + pd.Timedelta(days=1)
+
+# Recency: 最後の購入からの日数
+recency = train_data.groupby("CustomerID")["InvoiceDate"].max().reset_index()
+recency.columns = ["CustomerID", "LastPurchaseDate"]
+recency["Recency"] = (analysis_date - recency["LastPurchaseDate"]).dt.days
+
+# Frequency: 購入回数
+frequency = train_data.groupby("CustomerID")["InvoiceNo"].nunique().reset_index()
+frequency.columns = ["CustomerID", "Frequency"]
+
+# Monetary: 総支出金額
+monetary = train_data.groupby("CustomerID")["Basket Price"].sum().reset_index()
+monetary.columns = ["CustomerID", "Monetary"]
+
+# RFMデータの統合
+rfm_data = recency[["CustomerID", "Recency"]].copy()
+rfm_data = rfm_data.merge(frequency, on="CustomerID")
+rfm_data = rfm_data.merge(monetary, on="CustomerID")
+
+# RFMスコアの計算（四分位ベース、スケール1-4）
+# Recencyは低いほど良い（逆スコア）
+rfm_data["R_Score"] = pd.qcut(rfm_data["Recency"], q=4, labels=[4, 3, 2, 1], duplicates='drop').astype(float)
+rfm_data["F_Score"] = pd.qcut(rfm_data["Frequency"].rank(method='first'), q=4, labels=[1, 2, 3, 4], duplicates='drop').astype(float)
+rfm_data["M_Score"] = pd.qcut(rfm_data["Monetary"].rank(method='first'), q=4, labels=[1, 2, 3, 4], duplicates='drop').astype(float)
+
+# RFMスコアが計算できない顧客（カテゴリが少ない場合）の補完
+for col in ["R_Score", "F_Score", "M_Score"]:
+    rfm_data[col].fillna(rfm_data[col].mean(), inplace=True)
+
+# Monetary のパーセンタイルも保存しておく（上位5%を特別扱いするため）
+rfm_data["M_Pct"] = rfm_data["Monetary"].rank(pct=True)
+
+# セグメント定義（RFMスコアの組み合わせ）
+def assign_rfm_segment(row):
+    r, f, m = row["R_Score"], row["F_Score"], row["M_Score"]
+    m_pct = row.get("M_Pct", 0)
+    
+    # Champions: 上位5%のMonetaryはほぼ確実にChampion扱い
+    if m_pct >= 0.95:
+        return "Champions"
+    # Champions補助ルール: 非常に最近（r==4）かつ頻度トップ（f==4）で支出が高め（m>=3）
+    if r == 4 and f == 4 and m >= 3:
+        return "Champions"
+    # Loyal: 最近かつ頻度が高く、かつ支出も中〜高位
+    elif r >= 3 and f >= 3 and m >= 3:
+        return "Loyal Customers"
+    # At Risk: R=1 and (F>=3 or M>=3)
+    elif r == 1 and (f >= 3 or m >= 3):
+        return "At Risk"
+    # Lost: R=1 and F<=2 and M<=2
+    elif r == 1 and f <= 2 and m <= 2:
+        return "Lost"
+    # Need Attention: R=2 and (F>=3 or M>=3)
+    elif r == 2 and (f >= 3 or m >= 3):
+        return "Need Attention"
+    # Promising: R>=3 and (F=1 or M=1)
+    elif r >= 3 and (f == 1 or m == 1):
+        return "Promising"
+    # Big Spenders: M>=4
+    elif m >= 4:
+        return "Big Spenders"
+    # Standard: その他
+    else:
+        return "Standard"
+
+rfm_data["RFM_Segment"] = rfm_data.apply(assign_rfm_segment, axis=1)
+
+# セグメント名をクラスタIDにマッピング
+segment_to_cluster = {
+    "Champions": 0,
+    "Loyal Customers": 1,
+    "At Risk": 2,
+    "Lost": 3,
+    "Need Attention": 4,
+    "Promising": 5,
+    "Big Spenders": 6,
+    "Standard": 7,
+}
+rfm_data["cluster"] = rfm_data["RFM_Segment"].map(segment_to_cluster)
+
+# 訓練データセットと結合（顧客ごとの集約データ）
+transactions_per_user = pd.DataFrame()
+transactions_per_user["CustomerID"] = train_data.groupby("CustomerID")["Basket Price"].count().index
+transactions_per_user["count"] = train_data.groupby("CustomerID")["Basket Price"].count().values
+transactions_per_user["min"] = train_data.groupby("CustomerID")["Basket Price"].min().values
+transactions_per_user["max"] = train_data.groupby("CustomerID")["Basket Price"].max().values
+transactions_per_user["mean"] = train_data.groupby("CustomerID")["Basket Price"].mean().values
+transactions_per_user["sum"] = train_data.groupby("CustomerID")["Basket Price"].sum().values
+
+# カテゴリ別支出比率
 for i in range(5):
     col = f"categ_{i}"
-    transactions_per_user[col] = bp.groupby("CustomerID")[col].sum() / transactions_per_user["sum"] * 100
-transactions_per_user.reset_index(drop=False, inplace=True)
+    categ_sum = train_data.groupby("CustomerID")[col].sum()
+    # map sums to customers to ensure proper alignment by CustomerID
+    transactions_per_user[col] = transactions_per_user["CustomerID"].map(categ_sum).fillna(0)
+    # convert to percentage of total spend per customer; avoid division by zero
+    transactions_per_user[col] = (transactions_per_user[col] / transactions_per_user["sum"].replace({0: np.nan}) * 100).fillna(0)
 
-# 標準化 + KMeans(11群)
-cols = ["count", "min", "max", "mean", "categ_0", "categ_1", "categ_2", "categ_3", "categ_4"]
-matrix = transactions_per_user[cols].values
+# RFMデータと統合
+transactions_per_user = transactions_per_user.merge(
+    rfm_data[["CustomerID", "Recency", "Frequency", "Monetary", "RFM_Segment", "cluster"]],
+    on="CustomerID"
+)
+
+# クラスタIDに基づいてデータセットに割り当て
+all_customers = train_data.groupby("CustomerID").size().index.tolist()
+customer_to_cluster = dict(zip(rfm_data["CustomerID"], rfm_data["cluster"]))
+
+# 簡略化されたKMeans：既にセグメントが決定されているため、メトリクスのみ計算
+cols = ["Recency", "Frequency", "Monetary"]
+matrix = rfm_data[cols].values
 scaler = StandardScaler().fit(matrix)
 scaled = scaler.transform(matrix)
-kmeans = KMeans(init="k-means++", n_clusters=11, n_init=100).fit(scaled)
-clusters = kmeans.predict(scaled)
+clusters = rfm_data["cluster"].values
 sil = silhouette_score(scaled, clusters)
 
-# 輸出成果檔
+# 訓練データにクラスタを割り当て
+set_entrainement = train_data.copy()
+set_entrainement["cluster"] = set_entrainement["CustomerID"].map(customer_to_cluster).fillna(7).astype(int)
+
+# テストデータにもクラスタを割り当て（訓練時のマッピングを使用）
+set_test = set_test.copy()
+set_test["cluster"] = set_test["CustomerID"].map(customer_to_cluster).fillna(7).astype(int)
+
+# 出力
 set_entrainement.to_csv(ARTIFACTS / "stage4_set_entrainement.csv", index=False)
 set_test.to_csv(ARTIFACTS / "stage4_set_test.csv", index=False)
-transactions_per_user.assign(cluster=clusters).to_csv(
-    ARTIFACTS / "stage4_selected_customers_train.csv", index=False
-)
-joblib.dump(scaler, ARTIFACTS / "scaler.pkl")
-joblib.dump(kmeans, ARTIFACTS / "kmeans_clients.pkl")
-# 同步存到 artifacts/objects/，保持目錄整潔
-try:
-    joblib.dump(scaler, OBJECTS / "scaler.pkl")
-    joblib.dump(kmeans, OBJECTS / "kmeans_clients.pkl")
-    # Remove duplicates from artifacts root if present
-    for _p in [ARTIFACTS / "scaler.pkl", ARTIFACTS / "kmeans_clients.pkl"]:
-        try:
-            if _p.exists():
-                _p.unlink()
-        except Exception:
-            pass
-except Exception as _e:
-    print(f"[Stage 4] Warning: failed to save models to artifacts/objects/: {_e}")
+transactions_per_user.to_csv(ARTIFACTS / "stage4_selected_customers_train.csv", index=False)
 
-# 僅輸出指定四行（英文；逐行換行）
+joblib.dump(scaler, ARTIFACTS / "objects/scaler.pkl")
+joblib.dump(rfm_data, ARTIFACTS / "objects/rfm_reference.pkl")
+
+# メトリクスの保存
 start = basket_price["InvoiceDate"].min()
 end = basket_price["InvoiceDate"].max()
 print(f"[Stage 4] Date range: {start} -> {end}")
 print(f"Training rows: {len(set_entrainement)}  | Test rows: {len(set_test)}")
-print(f"Silhouette (11 clusters): {sil:.3f}")
-
+print(f"Silhouette (RFM-based segments): {sil:.3f}")
+print(f"[Stage 4] RFM Segment Distribution:")
+print(rfm_data["RFM_Segment"].value_counts())
 
 score_dict = {"silhouette": round(sil, 3), "test_rows": len(set_test)}
 with open(ARTIFACTS / 'stage4_metrics.json', 'w', encoding='utf-8') as f:

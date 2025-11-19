@@ -46,7 +46,7 @@ export default function ViewerSegments({ analytics, monthLabel }) {
             <p className="models-eyebrow">Stage 4 · 客群分層</p>
             <h2 className="models-title">顧客分群分析（{monthLabel}）</h2>
             <p className="models-subtitle">
-              訓練: {(safeNum(stage4.metrics?.trainRows) || 0).toLocaleString()} 件 | テスト:{' '}
+              訓練: {(safeNum(stage4.metrics?.trainRows) || 0).toLocaleString()} 件 | 測試:{' '}
               {(safeNum(stage4.metrics?.testRows) || 0).toLocaleString()} 件 | Silhouette:{' '}
               {(safeNum(stage4.metrics?.silhouette) || 0).toFixed(3)}
             </p>

@@ -52,6 +52,25 @@ flowchart LR
 
 ---
 
+## 5.1 Viewer 頁面結構（6 頁）
+| 頁碼 | 元件 | 顯示內容 |
+|------|------|---------|
+| 1 | `ViewerOverview` | KPI 趨勢（銷售額、訂單數、活躍會員等）與地區分佈圖 |
+| 2 | `ViewerInsights` | 日期序列圖表、實時指標與趨勢分析 |
+| 3 | `ViewerModels` | Stage 3 商品分群結果（5 群的關鍵字、單價、返品率） |
+| 4 | `ViewerSegments` | Stage 4 客戶分層（11 群的規模、消費額、頻率、故事） |
+| 5 | `ViewerOperational` | Stage 5–6 分類器評估與 SHAP 可視化（模型選擇器 + 條形圖 + Beeswarm 圖） |
+| 6 | `ViewerShap` | **Stage 7 深度解釋**（特徵重要度排名表、視覺化圖表、樣本級 SHAP 值） |
+
+### ViewerShap 頁面特性
+- **特徵重要度排名**：以互動式清單展示各特徵對模型的影響程度，支援展開詳細說明。
+- **多模型支援**：可在「Random Forest」「Gradient Boosting」「Logistic Regression」「Voting Ensemble」間切換，動態更新視覺化。
+- **SHAP 圖表**：自動載入 Stage 7 生成的 Bar Plot（整體重要度）與 Beeswarm Plot（樣本級分佈）。
+- **樣本級資料表**：顯示前 100 筆測試樣本的 SHAP 值，支援滾動查看。
+- **洞察卡片**：統計 Top 驅動因素、特徵總數、最高與最低重要度的比例。
+
+---
+
 ## 5. 逐步流程解說
 ### 前端如何上傳
 - `Upload.jsx` 讀 `VITE_API_BASE_URL`（預設 `http://localhost:8000`），並限制檔案大小不超過 `MAX_UPLOAD_MB`（前端與後端都會檢查）。

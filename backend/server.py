@@ -443,6 +443,40 @@ def get_latest_report():
             if shap_images["summary"] and shap_images["beeswarm"]:
                 break
 
+        # Load SHAP importance data from CSV files
+        shap_importance = {}
+        model_names_for_shap = ["Random Forest", "Gradient Boosting", "Logistic Regression", "Voting (RF+GB+KNN)"]
+        file_keys = ["Random_Forest", "Gradient_Boosting", "Logistic_Regression", "Voting_RF_GB_KNN"]
+        
+        for model_name, file_key in zip(model_names_for_shap, file_keys):
+            csv_path = ARTIFACTS_DIR / f"stage7_shap_importance_{file_key}.csv"
+            if csv_path.exists():
+                try:
+                    df_shap = pd.read_csv(csv_path)
+                    # Sort by mean_abs_shap descending
+                    df_shap = df_shap.sort_values('mean_abs_shap', ascending=False)
+                    shap_importance[model_name] = [
+                        {"feature": str(row['feature']), "importance": float(row['mean_abs_shap'])}
+                        for _, row in df_shap.iterrows()
+                    ]
+                except Exception as e:
+                    print(f"Warning: Failed to load SHAP importance for {model_name}: {e}")
+                    shap_importance[model_name] = []
+        
+        # Load SHAP values (per-sample data) from CSV files
+        shap_values = {}
+        for model_name, file_key in zip(model_names_for_shap, file_keys):
+            csv_path = ARTIFACTS_DIR / f"stage7_shap_values_{file_key}.csv"
+            if csv_path.exists():
+                try:
+                    df_vals = pd.read_csv(csv_path)
+                    # Limit to first 100 samples for frontend display
+                    df_vals = df_vals.head(100)
+                    shap_values[model_name] = df_vals.to_dict(orient='records')
+                except Exception as e:
+                    print(f"Warning: Failed to load SHAP values for {model_name}: {e}")
+                    shap_values[model_name] = []
+
         resp = {
             "status": "ok",
             "overview": overview if overview is not None else None,
@@ -450,6 +484,8 @@ def get_latest_report():
             "stage4": stage4 if stage4 is not None else None,
             "evaluation": {"stage5": eval5, "stage6": eval6},
             "shap_images": shap_images,
+            "shap_importance": shap_importance,
+            "shap_values": shap_values,
         }
         # JSON レスポンスを UTF-8 で返却（日本語を正しく表示）
         return JSONResponse(content=resp, media_type="application/json; charset=utf-8")

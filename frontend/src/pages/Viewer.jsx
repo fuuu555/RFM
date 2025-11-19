@@ -5,6 +5,7 @@ import ViewerInsights from './ViewerInsights'
 import ViewerModels from './ViewerModels'
 import ViewerSegments from './ViewerSegments'
 import ViewerOperational from './ViewerOperational'
+import ViewerShap from './ViewerShap'
 
 // 開發用假資料（當 API 取得失敗或初始顯示用）
 const buildRealtimeMock = (seed = 0) => {
@@ -73,11 +74,15 @@ const INITIAL_ANALYTICS = {
   // 【重要】新增 SHAP 圖像占位符
   shap_images: {
       summary: null,
-      beeswarm: null
-  }
+      beeswarm: null,
+      models: {}
+  },
+  // 【新增】SHAP 特徵重要度和值
+  shap_importance: {},
+  shap_values: {}
 }
 
-const TOTAL_PAGES = 5
+const TOTAL_PAGES = 6
 const API_BASE = 'http://localhost:8000' // API 端點
 
 export default function Viewer({ file, onReset }) {
@@ -180,7 +185,11 @@ export default function Viewer({ file, onReset }) {
         }
 
         // SHAP images (may be null)
-        const shapImages = data.shap_images || { summary: null, beeswarm: null }
+        const shapImages = data.shap_images || { summary: null, beeswarm: null, models: {} }
+
+        // SHAP importance and values
+        const shapImportance = data.shap_importance || {}
+        const shapValues = data.shap_values || {}
 
         setAnalyticsData((prev) => ({
           ...prev,
@@ -197,7 +206,9 @@ export default function Viewer({ file, onReset }) {
           stage6: {
             models: stage6Models
           },
-          shap_images: shapImages
+          shap_images: shapImages,
+          shap_importance: shapImportance,
+          shap_values: shapValues
         }))
         
         // API データで displayData と kpis を更新
@@ -470,9 +481,10 @@ export default function Viewer({ file, onReset }) {
             <ViewerModels analytics={analyticsData} />
           ) : page === 3 ? (
             <ViewerSegments analytics={analyticsData} monthLabel={monthLabel} />
-          ) : (
-            // 【変更】ViewerOperational に実データを渡す
+          ) : page === 4 ? (
             <ViewerOperational analytics={analyticsData} />
+          ) : (
+            <ViewerShap analytics={analyticsData} />
           )}
         </div>
 

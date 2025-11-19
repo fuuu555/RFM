@@ -1,5 +1,11 @@
 import React, { useMemo, useState } from 'react'
 
+// API base (match backend/server.py)
+const API_BASE = (() => {
+  const base = import.meta.env?.VITE_API_BASE_URL || 'http://localhost:8000'
+  return base.endsWith('/') ? base.slice(0, -1) : base
+})()
+
 export default function ViewerShap({ analytics }) {
   const { shap_importance = {}, shap_values = {}, shap_images = {} } = analytics
 
@@ -29,6 +35,13 @@ export default function ViewerShap({ analytics }) {
     () => shap_images?.models?.[selectedModel] || { bar: null, plot: null },
     [shap_images, selectedModel]
   )
+
+  const getImageSrc = (p) => {
+    if (!p) return null
+    if (p.startsWith('http://') || p.startsWith('https://')) return p
+    // assume path like '/artifacts/xxx.png'
+    return `${API_BASE}${p}`
+  }
 
   // Normalize importance scores (0-100 scale)
   const normalizedImportance = useMemo(() => {
@@ -133,7 +146,7 @@ export default function ViewerShap({ analytics }) {
               {modelImages.bar && (
                 <div className="shap-image-wrapper">
                   <img
-                    src={modelImages.bar}
+                    src={getImageSrc(modelImages.bar)}
                     alt={`${selectedModel} SHAP Bar Plot`}
                     className="shap-image"
                   />
@@ -144,7 +157,7 @@ export default function ViewerShap({ analytics }) {
               {modelImages.plot && (
                 <div className="shap-image-wrapper">
                   <img
-                    src={modelImages.plot}
+                    src={getImageSrc(modelImages.plot)}
                     alt={`${selectedModel} SHAP Beeswarm Plot`}
                     className="shap-image"
                   />
@@ -198,33 +211,36 @@ export default function ViewerShap({ analytics }) {
       <section className="shap-insights">
         <h3>Key Insights</h3>
         <div className="insights-grid">
-          <div className="insight-card">
-            <div className="insight-icon">📊</div>
-            <h4>Top Driver</h4>
-            <p>
-              {normalizedImportance.length > 0
-                ? `"${normalizedImportance[0].feature}" is the strongest predictor`
-                : 'N/A'}
-            </p>
-          </div>
-          <div className="insight-card">
-            <div className="insight-icon">🎯</div>
-            <h4>Feature Count</h4>
-            <p>
-              {normalizedImportance.length} features analyzed
-            </p>
-          </div>
-          <div className="insight-card">
-            <div className="insight-icon">⚖️</div>
-            <h4>Balance</h4>
-            <p>
-              {normalizedImportance.length > 0
-                ? `Top feature is ${Math.round(
-                    (normalizedImportance[0].importance / normalizedImportance[normalizedImportance.length - 1].importance)
-                  )}x more important than least important`
-                : 'N/A'}
-            </p>
-          </div>
+            <div className="insight-card">
+              <div className="insight-icon">📊</div>
+              <h4>Top Driver</h4>
+              <p>
+                {normalizedImportance.length > 0
+                  ? `"${normalizedImportance[0].feature}" is the strongest predictor`
+                  : 'N/A'}
+              </p>
+            </div>
+            <div className="insight-card">
+              <div className="insight-icon">🎯</div>
+              <h4>Feature Count</h4>
+              <p>
+                {normalizedImportance.length} features analyzed
+              </p>
+            </div>
+            <div className="insight-card">
+              <div className="insight-icon">⚖️</div>
+              <h4>Balance</h4>
+              <p>
+                {(() => {
+                  if (normalizedImportance.length < 2) return 'N/A'
+                  const top = normalizedImportance[0].importance || 0
+                  const last = normalizedImportance[normalizedImportance.length - 1].importance || 0
+                  if (last === 0) return 'N/A'
+                  const ratio = top / last
+                  return `${ratio.toFixed(1)}x more important than least important`
+                })()}
+              </p>
+            </div>
         </div>
       </section>
     </div>

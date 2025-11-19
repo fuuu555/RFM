@@ -261,7 +261,11 @@ def analyze_stage4_segments():
         cat_cols = [f"categ_{i}" for i in range(5)]
         cat_means = group[cat_cols].mean().fillna(0)
         top_cat_idx = int(cat_means.argmax())
-        top_cat_pct = round(float(cat_means[top_cat_idx]), 1)
+        # use iloc for positional access to avoid FutureWarning
+        try:
+            top_cat_pct = round(float(cat_means.iloc[top_cat_idx]), 1)
+        except Exception:
+            top_cat_pct = round(float(cat_means.values[top_cat_idx]) if len(cat_means.values) > top_cat_idx else 0, 1)
         top_cat_name = f"Category {top_cat_idx}"
         
         # セグメント名を取得（定義済みマッピングから）
@@ -423,25 +427,27 @@ def get_latest_report():
             ("Logistic_Regression", "Logistic Regression")
         ]
         
-        # 1. サマリープロット（最初に見つかったモデル）
+        # 1. サマリープロット（モデルごとに収集。summary/beeswarm は最初に見つかったものを採用）
         for file_key, model_name in model_priority:
             bar_file = f"stage7_shap_summary_bar_{file_key}.png"
             plot_file = f"stage7_shap_summary_{file_key}.png"
             bar_path = ARTIFACTS_DIR / bar_file
             plot_path = ARTIFACTS_DIR / plot_file
-            
-            if bar_path.exists():
-                shap_images["summary"] = f"/artifacts/{bar_file}"
-            if plot_path.exists():
-                shap_images["beeswarm"] = f"/artifacts/{plot_file}"
-                # モデルごとに記録
+
+            # Record per-model assets when present
+            has_bar = bar_path.exists()
+            has_plot = plot_path.exists()
+            if has_bar or has_plot:
                 shap_images["models"][model_name] = {
-                    "bar": f"/artifacts/{bar_file}" if bar_path.exists() else None,
-                    "plot": f"/artifacts/{plot_file}" if plot_path.exists() else None
+                    "bar": f"/artifacts/{bar_file}" if has_bar else None,
+                    "plot": f"/artifacts/{plot_file}" if has_plot else None,
                 }
-            
-            if shap_images["summary"] and shap_images["beeswarm"]:
-                break
+
+            # Set global summary/beeswarm if not already set (first available)
+            if shap_images.get("summary") is None and has_bar:
+                shap_images["summary"] = f"/artifacts/{bar_file}"
+            if shap_images.get("beeswarm") is None and has_plot:
+                shap_images["beeswarm"] = f"/artifacts/{plot_file}"
 
         # Load SHAP importance data from CSV files
         shap_importance = {}

@@ -12,6 +12,7 @@ import warnings, datetime
 from pathlib import Path
 import pandas as pd
 import numpy as np
+import json
 from sklearn.preprocessing import StandardScaler
 from sklearn.cluster import KMeans
 from sklearn.metrics import silhouette_score
@@ -113,4 +114,8 @@ end = basket_price["InvoiceDate"].max()
 print(f"[Stage 4] Date range: {start} -> {end}")
 print(f"Training rows: {len(set_entrainement)}  | Test rows: {len(set_test)}")
 print(f"Silhouette (11 clusters): {sil:.3f}")
-print("[Stage 4] Saved: stage4_set_entrainement.csv, stage4_set_test.csv, scaler.pkl, kmeans_clients.pkl, stage4_selected_customers_train.csv")
+
+
+score_dict = {"silhouette": round(sil, 3), "test_rows": len(set_test)}
+with open(ARTIFACTS / 'stage4_metrics.json', 'w', encoding='utf-8') as f:
+    json.dump(score_dict, f, indent=2, ensure_ascii=False)

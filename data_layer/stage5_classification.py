@@ -185,6 +185,9 @@ except Exception as _e:
     print(f"[Stage 5] Warning: failed to save votingC to artifacts/objects/: {_e}")
 
 # ---- Quick eval snapshot（accuracy 保留 0~1 浮點；與你一致）----
+# ...既存コード...
+
+# ★【修正】results 辞書の形式を統一（accuracy と f1_weighted を含める）
 results = {}
 models_for_eval = [
     ('SVC',  svc.grid.best_estimator_),
@@ -196,14 +199,19 @@ models_for_eval = [
     ('GB',   gb.grid.best_estimator_),
     ('VOTE', votingC),
 ]
+
 for name, est in models_for_eval:
     pred = est.predict(X_test)
-    results[name] = float(metrics.accuracy_score(Y_test, pred))
+    results[name] = {
+        "accuracy": float(metrics.accuracy_score(Y_test, pred)),
+        "f1_weighted": float(metrics.f1_score(Y_test, pred, average='weighted', zero_division=0))
+    }
 
+# JSON 出力を確認可能に
 with open(ARTIFACTS/'stage5_eval.json','w', encoding='utf-8') as f:
     json.dump(results, f, indent=2, ensure_ascii=False)
 
-print('[Stage 5] Saved best estimators + votingC to artifacts/. Accuracies:', results)
+print('[Stage 5] Saved evaluation results:', json.dumps(results, ensure_ascii=False))
 
 # ---- 機率輸出（每個模型都輸出，且「含模型名稱」）----
 class_labels = np.sort(Y.unique())

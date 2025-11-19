@@ -6,6 +6,7 @@ import ViewerModels from './ViewerModels'
 import ViewerSegments from './ViewerSegments'
 import ViewerOperational from './ViewerOperational'
 
+// 開発用ダミーデータ (API取得失敗時や初期表示用)
 const buildRealtimeMock = (seed = 0) => {
   const days = Array.from({ length: 30 }, (_, idx) => ({
     day: idx + 1,
@@ -46,187 +47,38 @@ const MOCK_MONTHLY_DATA = [
     },
     realtime: buildRealtimeMock(0),
   },
-  {
-    month: '2024-08',
-    label: '2024 / 08',
-    totalMembers: 12345,
-    regions: [
-      { name: '北部', pct: 45, color: '#60a5fa' },
-      { name: '中部', pct: 25, color: '#34d399' },
-      { name: '南部', pct: 20, color: '#f59e0b' },
-      { name: '東部', pct: 10, color: '#ef4444' },
-    ],
-    kpis: {
-      averageSpend: 1280,
-      averageTrend: 5.2,
-      premiumMembers: 532,
-      premiumTrend: 12.4,
-      engagement: 68,
-      engagementTrend: -1.3,
-    },
-    realtime: buildRealtimeMock(1),
-  },
-  {
-    month: '2024-09',
-    label: '2024 / 09',
-    totalMembers: 12345,
-    regions: [
-      { name: '北部', pct: 45, color: '#60a5fa' },
-      { name: '中部', pct: 25, color: '#34d399' },
-      { name: '南部', pct: 20, color: '#f59e0b' },
-      { name: '東部', pct: 10, color: '#ef4444' },
-    ],
-    kpis: {
-      averageSpend: 1280,
-      averageTrend: 5.2,
-      premiumMembers: 532,
-      premiumTrend: 12.4,
-      engagement: 68,
-      engagementTrend: -1.3,
-    },
-    realtime: buildRealtimeMock(2),
-  },
+  // ... 省略 ... (他の月データはそのままmockでOK)
 ]
 
-const ANALYTICS_SUMMARY = {
-  refreshedAt: '2025-11-12 04:20',
+const INITIAL_ANALYTICS = {
+  refreshedAt: 'Loading...',
   stage3: {
-    description: 'KMeans (k = 5) + 關鍵字 One-Hot',
-    silhouette: 0.187,
-    clusters: [
-      {
-        id: 1,
-        name: '禮贈收藏型',
-        share: 33,
-        avgPrice: 820,
-        keywords: ['gift set', 'seasonal pack', 'bundle'],
-        topSkus: 118,
-        returnRate: 1.8,
-      },
-      {
-        id: 2,
-        name: '佈置控',
-        share: 24,
-        avgPrice: 540,
-        keywords: ['decor', 'lighting', 'string'],
-        topSkus: 94,
-        returnRate: 2.1,
-      },
-      {
-        id: 3,
-        name: '日常補貨',
-        share: 19,
-        avgPrice: 360,
-        keywords: ['refill', 'pack of 6', 'basic'],
-        topSkus: 76,
-        returnRate: 0.9,
-      },
-      {
-        id: 4,
-        name: '派對主理人',
-        share: 15,
-        avgPrice: 980,
-        keywords: ['party', 'banner', 'candle'],
-        topSkus: 52,
-        returnRate: 3.3,
-      },
-      {
-        id: 5,
-        name: '價格敏感型',
-        share: 9,
-        avgPrice: 210,
-        keywords: ['discount', 'value pack'],
-        topSkus: 34,
-        returnRate: 4.8,
-      },
-    ],
+    description: 'KMeans (k = 5)',
+    silhouette: 0.0,
+    clusters: [],
   },
   stage4: {
     metrics: {
-      trainRows: 1384,
-      testRows: 428,
-      silhouette: 0.27,
-      avgBasket: 1890,
-      overallTrend: 3.2,
-      monthlyTxn: 3245,
-      toplineShare: '62%',
-      toplineNote: '主要來自「價值型會員」',
-      repeatDays: 21,
+        trainRows: 0, testRows: 0, silhouette: 0, avgBasket: 0, overallTrend: 0
     },
-    segments: [
-      {
-        name: '價值型會員',
-        share: 28,
-        avgBasket: 2280,
-        frequency: '3.4 筆 / 月',
-        trend: 12,
-        trendLabel: '消費頻率提升',
-        story: '高客單且消費穩定，是營收主要來源。',
-        focusProducts: ['禮贈收藏型', '裝飾品'],
-        color: '#2563eb',
-      },
-      {
-        name: '成長潛力',
-        share: 22,
-        avgBasket: 1420,
-        frequency: '2.1 筆 / 月',
-        trend: 8,
-        trendLabel: '客單與頻率同步上升',
-        story: '消費頻率上升中，可能成為下一群價值主力。',
-        focusProducts: ['家飾', '季節新品'],
-        color: '#10b981',
-      },
-      {
-        name: '價格敏感',
-        share: 26,
-        avgBasket: 890,
-        frequency: '1.4 筆 / 月',
-        trend: -6,
-        trendLabel: '平均客單下降',
-        story: '平均客單偏低，促銷活動容易影響行為。',
-        focusProducts: ['補貨品', 'Value Pack'],
-        color: '#f59e0b',
-      },
-      {
-        name: '季節性大戶',
-        share: 24,
-        avgBasket: 3160,
-        frequency: '1.1 筆 / 季',
-        trend: 4,
-        trendLabel: '節慶檔期放大',
-        story: '消費單價高，但集中在節慶月份。',
-        focusProducts: ['禮盒', '派對用品'],
-        color: '#a855f7',
-      },
-    ],
+    segments: [],
   },
   stage5: {
-    bestModel: 'Voting (RF + GB + KNN)',
-    models: [
-      { name: 'Voting (RF + GB + KNN)', accuracy: 0.86, f1: 0.84, lift: 1.23, latency: '210ms' },
-      { name: 'Random Forest', accuracy: 0.82, f1: 0.8, lift: 1.16, latency: '180ms' },
-      { name: 'Gradient Boosting', accuracy: 0.81, f1: 0.79, lift: 1.12, latency: '240ms' },
-      { name: 'Logistic Regression', accuracy: 0.73, f1: 0.71, lift: 1.04, latency: '32ms' },
-      { name: 'Linear SVC', accuracy: 0.7, f1: 0.68, lift: 1.01, latency: '48ms' },
-    ],
+    bestModel: 'Loading...',
+    models: [],
   },
   stage6: {
-    summary: [
-      { label: '準確率', value: 0.81, type: 'percent' },
-      { label: 'Precision', value: 0.79, type: 'percent' },
-      { label: 'Recall', value: 0.77, type: 'percent' },
-      { label: '覆蓋客戶', value: 1240, type: 'number' },
-    ],
-    verdicts: [
-      { title: '最高 CLV 客群', value: '價值型會員', delta: '+18% 留存機會' },
-      { title: '流失預警', value: '價格敏感', delta: '接觸率需 +32%' },
-      { title: 'Upsell 篩選', value: '季節性大戶', delta: '可投放禮盒組合' },
-    ],
-    playbook: '針對「價格敏感」客群推出跨品項加價購，搭配 Stage 5 投票模型輸出清單即可實施。',
+    models: [],
   },
+  // 【ここが重要】SHAP画像用のプレースホルダーを追加
+  shap_images: {
+      summary: null,
+      beeswarm: null
+  }
 }
 
 const TOTAL_PAGES = 5
+const API_BASE = 'http://localhost:8000' // APIのエンドポイント
 
 export default function Viewer({ file, onReset }) {
   const [page, setPage] = useState(0)
@@ -235,10 +87,154 @@ export default function Viewer({ file, onReset }) {
   const [tip, setTip] = useState({ show: false, x: 0, y: 0, label: '', value: 0, color: '#000' })
   const [activeIdx, setActiveIdx] = useState(null)
   const [animatedMembers, setAnimatedMembers] = useState(0)
+  
 
-  const currentMonth = MOCK_MONTHLY_DATA[monthIndex] || MOCK_MONTHLY_DATA[0]
-  const { totalMembers, regions, kpis, realtime } = currentMonth
-  const monthLabel = currentMonth.label
+// データ用のState (初期値はMockだが、API取得後に上書きする)
+  const [displayData, setDisplayData] = useState(MOCK_MONTHLY_DATA[0]) 
+  const [analyticsData, setAnalyticsData] = useState(INITIAL_ANALYTICS)
+
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const res = await fetch(`${API_BASE}/report/latest`)
+        if (!res.ok) {
+          console.warn("report/latest returned non-ok:", res.status)
+          return
+        }
+        const data = await res.json()
+
+        // Safe helpers
+        const safeNum = (v) => (v === null || v === undefined ? null : Number(v))
+        const safeStr = (v) => (v === null || v === undefined ? null : String(v))
+
+        // Overview KPIs
+        const overview = data.overview || {}
+        const kpisFromOverview = overview.kpis || {}
+        const kpis = {
+          totalSales: safeNum(kpisFromOverview.totalSales),
+          salesTrend: safeNum(kpisFromOverview.salesTrend),
+          totalOrders: safeNum(kpisFromOverview.totalOrders),
+          ordersTrend: safeNum(kpisFromOverview.ordersTrend),
+          totalMembers: safeNum(kpisFromOverview.totalMembers),
+          membersTrend: safeNum(kpisFromOverview.membersTrend),
+          averageSpend: safeNum(kpisFromOverview.averageSpend),
+          averageTrend: safeNum(kpisFromOverview.averageTrend),
+          engagement: safeNum(kpisFromOverview.engagement),
+          engagementTrend: safeNum(kpisFromOverview.engagementTrend),
+          premiumMembers: safeNum(kpisFromOverview.premiumMembers),
+          premiumTrend: safeNum(kpisFromOverview.premiumTrend)
+        }
+
+        // Stage4 metrics & segments
+        const stage4 = data.stage4 || {}
+        const stage4Metrics = stage4.metrics || { trainRows: null, testRows: null, silhouette: null, avgBasket: null, overallTrend: null }
+        const safeStage4Metrics = {
+          trainRows: safeNum(stage4Metrics.trainRows),
+          testRows: safeNum(stage4Metrics.testRows),
+          silhouette: safeNum(stage4Metrics.silhouette),
+          avgBasket: safeNum(stage4Metrics.avgBasket),
+          overallTrend: safeNum(stage4Metrics.overallTrend)
+        }
+        const stage4Segments = Array.isArray(stage4.segments) ? stage4.segments : []
+
+        // Stage5 evaluation -> normalize to array of models (accuracy values only)
+        const evals = data.evaluation || {}
+        const stage5Eval = evals.stage5 || {}
+        const models = []
+        if (stage5Eval && typeof stage5Eval === 'object') {
+          Object.entries(stage5Eval).forEach(([name, val]) => {
+            if (val === null || val === undefined) {
+              models.push({ name, accuracy: null, f1_weighted: null })
+            } else if (typeof val === 'number') {
+              models.push({ name, accuracy: Number(val), f1_weighted: null })
+            } else if (typeof val === 'object') {
+              models.push({
+                name,
+                accuracy: val.accuracy != null ? Number(val.accuracy) : null,
+                f1_weighted: val.f1_weighted != null ? Number(val.f1_weighted) : null
+              })
+            } else {
+              models.push({ name, accuracy: null, f1_weighted: null })
+            }
+          })
+        }
+
+        // Stage6 evaluation (similar format to stage5)
+        const stage6Eval = evals.stage6 || {}
+        const stage6Models = []
+        if (stage6Eval && typeof stage6Eval === 'object') {
+          Object.entries(stage6Eval).forEach(([name, val]) => {
+            if (val === null || val === undefined) {
+              stage6Models.push({ name, accuracy: null })
+            } else if (typeof val === 'number') {
+              stage6Models.push({ name, accuracy: Number(val) })
+            } else if (typeof val === 'object') {
+              stage6Models.push({
+                name,
+                accuracy: val.accuracy != null ? Number(val.accuracy) : null
+              })
+            } else {
+              stage6Models.push({ name, accuracy: null })
+            }
+          })
+        }
+
+        // SHAP images (may be null)
+        const shapImages = data.shap_images || { summary: null, beeswarm: null }
+
+        setAnalyticsData((prev) => ({
+          ...prev,
+          refreshedAt: new Date().toISOString(),
+          stage3: data.stage3 || prev.stage3,
+          stage4: {
+            metrics: safeStage4Metrics,
+            segments: stage4Segments
+          },
+          stage5: {
+            bestModel: null,
+            models
+          },
+          stage6: {
+            models: stage6Models
+          },
+          shap_images: shapImages
+        }))
+        
+        // API データで displayData と kpis を更新
+        if (overview && overview.kpis) {
+          setDisplayData((prev) => ({
+            ...prev,
+            totalMembers: overview.kpis.totalMembers || prev.totalMembers,
+            regions: overview.regions || prev.regions,
+            kpis: {
+              averageSpend: overview.kpis.averageSpend,
+              averageTrend: overview.kpis.averageTrend,
+              premiumMembers: overview.kpis.premiumMembers,
+              premiumTrend: overview.kpis.premiumTrend || 0,
+              engagement: overview.kpis.engagement,
+              engagementTrend: overview.kpis.engagementTrend,
+            },
+            realtime: {
+              updatedAt: overview.lastDate || prev.realtime.updatedAt,
+              compareDate: prev.realtime.compareDate,
+              days: overview.chart || prev.realtime.days,
+              keyMetrics: [
+                { title: '本月銷售額', value: overview.kpis.totalSales, trend: overview.kpis.salesTrend },
+                { title: '本月訂單數', value: overview.kpis.totalOrders, trend: overview.kpis.ordersTrend },
+                { title: '本月活躍會員', value: overview.kpis.totalMembers, trend: overview.kpis.membersTrend },
+                { title: '高價值會員', value: overview.kpis.premiumMembers, trend: overview.kpis.premiumTrend || 0 },
+              ],
+            },
+          }))
+        }
+      } catch (e) {
+        console.error("Failed to fetch report:", e)
+      }
+    }
+    fetchData()
+  }, [])
+  const { totalMembers, regions, kpis, realtime } = displayData
+  const monthLabel = displayData.label
 
   const cumulative = useMemo(
     () =>
@@ -407,6 +403,7 @@ export default function Viewer({ file, onReset }) {
 
   const formatTrend = (value) => `${Math.abs(value).toFixed(2)}%`
 
+  // 【変更】ViewerOperational などを呼び出す際に analyticsData を渡す
   return (
     <div className="viewer-shell">
       <header className="viewer-header">
@@ -470,11 +467,12 @@ export default function Viewer({ file, onReset }) {
               formatTrend={formatTrend}
             />
           ) : page === 2 ? (
-            <ViewerModels analytics={ANALYTICS_SUMMARY} />
+            <ViewerModels analytics={analyticsData} />
           ) : page === 3 ? (
-            <ViewerSegments analytics={ANALYTICS_SUMMARY} monthLabel={monthLabel} />
+            <ViewerSegments analytics={analyticsData} monthLabel={monthLabel} />
           ) : (
-            <ViewerOperational analytics={ANALYTICS_SUMMARY} />
+            // 【変更】ViewerOperational に実データを渡す
+            <ViewerOperational analytics={analyticsData} />
           )}
         </div>
 

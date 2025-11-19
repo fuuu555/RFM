@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react'
 
+import Spinner from '../shared/Spinner.jsx'
 import ViewerOverview from './ViewerOverview'
 import ViewerInsights from './ViewerInsights'
 import ViewerModels from './ViewerModels'
@@ -66,10 +67,12 @@ export default function Viewer({ file, initialPeriods = null, onReset }) {
   const [availablePeriods, setAvailablePeriods] = useState([])
   const [selectedPeriodIdx, setSelectedPeriodIdx] = useState(0)
   const [periodMode, setPeriodMode] = useState('month') // 'month' or 'year'
+  const [isFetching, setIsFetching] = useState(false)
 
   // フェッチ関数：periodを指定してレポートを取得し、状態を更新する
   const fetchReportForPeriod = async (period = null) => {
     try {
+      setIsFetching(true)
       const url = period ? `${API_BASE}/report/latest?period=${encodeURIComponent(period)}` : `${API_BASE}/report/latest`
       const res = await fetch(url)
       if (!res.ok) {
@@ -81,6 +84,10 @@ export default function Viewer({ file, initialPeriods = null, onReset }) {
     } catch (e) {
       console.error('Failed to fetch report:', e)
       return null
+    }
+    finally {
+      // ★【修正】isFetching を false に設定 (finally ブロック内で実行)
+      setIsFetching(false) 
     }
   }
 
@@ -432,6 +439,15 @@ export default function Viewer({ file, initialPeriods = null, onReset }) {
       </header>
 
       <main className="viewer-body">
+        {/* ローディングオーバーレイの表示 */}
+        {isFetching && (
+          <div className="overlay" style={{ position: 'absolute', inset: 0, zIndex: 10 }}>
+            <div className="overlay-card" style={{ padding: '16px 30px' }}>
+              <Spinner size={24} />
+              <div className="overlay-text">正在取得分析數據...</div>
+            </div>
+          </div>
+        )}
         <div className="nav left">
           {page > 0 && (
             <button className="arrow-btn" aria-label="上一頁" onClick={prev}>

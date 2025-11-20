@@ -21,6 +21,7 @@ if str(REPO_ROOT) not in sys.path:
 
 from data_layer.pipeline import run_all_stages
 import threading
+import time
 
 app = FastAPI(title="Upload Service")
 
@@ -94,12 +95,34 @@ async def upload_file(file: UploadFile = File(...)):
     except Exception as e:
         print(f"Warning: failed to compute preview periods from uploaded file: {e}")
 
+    # Persist pipeline status so frontend can poll reliably and wait until completion
+    status_path = ARTIFACTS_DIR / "pipeline_status.json"
+
+    def _write_status(state: str, message: str | None = None, success: bool | None = None):
+        try:
+            ARTIFACTS_DIR.mkdir(parents=True, exist_ok=True)
+            payload = {
+                "status": state,
+                "message": message,
+                "success": success,
+                "timestamp": time.time()
+            }
+            with open(status_path, "w", encoding="utf-8") as sf:
+                json.dump(payload, sf)
+        except Exception as e:
+            print(f"Warning: failed to write pipeline status: {e}")
+
+    # mark pipeline as started
+    _write_status("running", message="Pipeline started", success=None)
+
     # Start the heavy pipeline in background thread so upload can return quickly
     def _run_pipeline_background():
         try:
             run_all_stages(stop_on_error=False)
+            _write_status("done", message="Pipeline completed successfully", success=True)
         except Exception as exc:
             print(f"Background pipeline failed: {exc}")
+            _write_status("failed", message=str(exc), success=False)
 
     threading.Thread(target=_run_pipeline_background, daemon=True).start()
 
@@ -109,6 +132,22 @@ async def upload_file(file: UploadFile = File(...)):
         "preview_periods": preview_periods,
         "pipeline_started": True,
     }
+
+
+@app.get("/pipeline/status")
+def pipeline_status():
+    """Return current pipeline status written to artifacts/pipeline_status.json.
+    If not present, return status 'idle'."""
+    status_path = ARTIFACTS_DIR / "pipeline_status.json"
+    if not status_path.exists():
+        return JSONResponse(content={"status": "idle"}, media_type="application/json; charset=utf-8")
+    try:
+        with open(status_path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        return JSONResponse(content=data, media_type="application/json; charset=utf-8")
+    except Exception as e:
+        print(f"Warning: failed to read pipeline status file: {e}")
+        return JSONResponse(content={"status": "unknown", "message": str(e)}, media_type="application/json; charset=utf-8")
 # ... (冒頭のimportなどはそのまま) ...
 
 # 趨勢計算用輔助函數

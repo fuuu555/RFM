@@ -207,11 +207,23 @@ def main():
         print(f"[Stage 7] 重建測試特徵失敗：{e}")
         return
 
-    # 嘗試載入 Stage 6 的 kmeans 以取得 y_true（可選）
+    # 嘗試載入 Stage 6 的 kmeans 以取得 y_true（可選）。
+    # ただし保存済み scaler が現在の特徴次元と不一致ならフォールバックして None にする。
     y_true = None
+
+    def _try_kmeans_y(mat):
+        try:
+            scaler = _load_obj('scaler.pkl')
+            kmeans_clients = _load_obj('kmeans_clients.pkl')
+            # scaler の期待次元を持っているならチェックする
+            if hasattr(scaler, 'n_features_in_') and scaler.n_features_in_ != mat.shape[1]:
+                return None
+            scaled = scaler.transform(mat)
+            return kmeans_clients.predict(scaled)
+        except Exception:
+            return None
+
     try:
-        scaler = _load_obj('scaler.pkl')
-        kmeans_clients = _load_obj('kmeans_clients.pkl')
         set_test = pd.read_csv(SET_TEST_PATH)
         list_cols = ['count','min','max','mean','categ_0','categ_1','categ_2','categ_3','categ_4']
         matrix_test = set_test.groupby(by=['CustomerID'])['Basket Price'].agg(
@@ -225,10 +237,10 @@ def main():
         matrix_test['count'] = 5 * matrix_test['count']
         matrix_test['sum'] = matrix_test['count'] * matrix_test['mean']
         matrix_test = matrix_test[list_cols].values
-        scaled = scaler.transform(matrix_test)
-        y_true = kmeans_clients.predict(scaled)
+        y_true = _try_kmeans_y(matrix_test)
     except Exception:
-        pass
+        # 何か問題あれば y_true は None のまま（後続は推定できるモデルがあれば継続）
+        y_true = None
 
     # 載入已訓練模型（優先選擇解釋較快者）
     models = []

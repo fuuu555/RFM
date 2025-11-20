@@ -47,10 +47,34 @@ def _load_obj(name):
         return joblib.load(path1)
     return joblib.load(path2)
 
-scaler = _load_obj('scaler.pkl')
-scaled_test_matrix = scaler.transform(matrix_test)
-kmeans_clients = _load_obj('kmeans_clients.pkl')
-Y = kmeans_clients.predict(scaled_test_matrix)
+# Try to use a saved kmeans + scaler if available and compatible with the
+# constructed test matrix. If not available (or incompatible), fall back to
+# using the `cluster` mapping already present in `set_test` (produced by
+# Stage 4) to obtain Y labels.
+def _try_kmeans_y(mat):
+    try:
+        scaler = _load_obj('scaler.pkl')
+        kmeans_clients = _load_obj('kmeans_clients.pkl')
+        # check scaler compatibility (scikit-learn stores n_features_in_)
+        if hasattr(scaler, 'n_features_in_') and scaler.n_features_in_ != mat.shape[1]:
+            return None
+        scaled = scaler.transform(mat)
+        return kmeans_clients.predict(scaled)
+    except Exception:
+        return None
+
+Y = _try_kmeans_y(matrix_test)
+if Y is None:
+    # fallback: use cluster mapping from set_test (Stage 4 saved this)
+    if 'cluster' in set_test.columns:
+        mapping = (
+            set_test.groupby('CustomerID')['cluster']
+            .agg(lambda x: x.mode().iloc[0] if not x.mode().empty else 7)
+            .to_dict()
+        )
+        Y = transactions_per_user['CustomerID'].map(mapping).fillna(7).astype(int).values
+    else:
+        raise RuntimeError('Cannot determine Y: missing kmeans_clients and no cluster column in set_test')
 
 # ---- 分類器用的特徵（與 Section 5 一致）----
 feat_cols = ['mean', 'categ_0', 'categ_1', 'categ_2', 'categ_3', 'categ_4']

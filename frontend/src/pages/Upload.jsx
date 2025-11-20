@@ -17,6 +17,7 @@ const PIPELINE_STEPS = [
   { label: 'Stage 4 - 客群分層', eta: 15 },
   { label: 'Stage 5 - 分類模型', eta: 18 },
   { label: 'Stage 6 - 測試預測', eta: 10 },
+  { label: 'Stage 7 - 報告與 SHAP', eta: 12 },
 ]
 const TOTAL_ESTIMATED_SEC = PIPELINE_STEPS.reduce((sum, step) => sum + step.eta, 0)
 
@@ -40,6 +41,8 @@ const parseErrorMessage = async (response) => {
   }
 }
 
+const POLL_INTERVAL_MS = 3000
+
 export default function Upload({ onComplete, onSkip }) {
   const inputRef = useRef(null)
   const timerRef = useRef(null)
@@ -48,6 +51,9 @@ export default function Upload({ onComplete, onSkip }) {
   const [error, setError] = useState('')
   const [activeStageIdx, setActiveStageIdx] = useState(0)
   const [elapsedSec, setElapsedSec] = useState(0)
+  const [pipelineStatus, setPipelineStatus] = useState(null)
+  const [showLogs, setShowLogs] = useState(false)
+  const [pipelineLogs, setPipelineLogs] = useState('')
 
   useEffect(() => {
     if (!loading) {
@@ -55,6 +61,9 @@ export default function Upload({ onComplete, onSkip }) {
         clearInterval(timerRef.current)
         timerRef.current = null
       }
+      // stop pipeline polling when not loading
+      setPipelineStatus(null)
+      setPipelineLogs('')
       return
     }
 
@@ -82,6 +91,61 @@ export default function Upload({ onComplete, onSkip }) {
       }
     }
   }, [loading])
+
+  // Helper: derive stage index from pipelineStatus.current_stage like 'Stage 3' -> index 2
+  const getIndexFromStatus = (statusObj) => {
+    if (!statusObj || !statusObj.current_stage) return null
+    const cs = String(statusObj.current_stage)
+    for (let i = 0; i < PIPELINE_STEPS.length; i += 1) {
+      const stepPrefix = `Stage ${i + 1}`
+      if (cs.startsWith(stepPrefix) || (statusObj.message && statusObj.message.startsWith(stepPrefix))) {
+        return i
+      }
+    }
+    return null
+  }
+
+
+  // Poll pipeline status while loading to update overlay
+  useEffect(() => {
+    if (!loading) return
+    let mounted = true
+    let pollId = null
+    const doPoll = async () => {
+      try {
+        const res = await fetch(`${API_BASE_URL}/pipeline/status`)
+        if (!res.ok) return
+        const d = await res.json()
+        if (!mounted) return
+        setPipelineStatus(d)
+        // fetch logs lazily if requested
+        if (showLogs) {
+          try {
+            const r2 = await fetch(`${API_BASE_URL}/artifacts/pipeline_logs.txt`)
+            if (r2.ok) {
+              const text = await r2.text()
+              // keep last ~2000 chars to avoid huge payloads
+              setPipelineLogs(text.slice(-2000))
+            }
+          } catch (e) {
+            // ignore
+          }
+        }
+        if (d && (d.status === 'done' || d.status === 'failed')) {
+          // stop polling once finished
+          return
+        }
+      } catch (e) {
+        // ignore network errors
+      }
+      pollId = setTimeout(doPoll, POLL_INTERVAL_MS)
+    }
+    doPoll()
+    return () => {
+      mounted = false
+      if (pollId) clearTimeout(pollId)
+    }
+  }, [loading, showLogs])
 
   const openPicker = () => inputRef.current?.click()
 
@@ -123,8 +187,42 @@ export default function Upload({ onComplete, onSkip }) {
 
     try {
       const response = await uploadToServer(file)
-      // If backend returned preview periods, pass them to parent so Viewer can show choices
+      // If backend returned preview periods, keep them
       const preview_periods = response?.preview_periods || []
+
+      // Wait for pipeline completion by polling `/pipeline/status`.
+      // No timeout: for large files we wait until pipeline reports 'done' or 'failed'.
+      const waitForPipeline = async () => {
+        while (true) {
+          try {
+            const r = await fetch(`${API_BASE_URL}/pipeline/status`)
+            if (r.ok) {
+              const d = await r.json()
+              const s = d && d.status ? d.status : null
+              if (s === 'done') {
+                return { ok: true }
+              }
+              if (s === 'failed') {
+                return { ok: false, message: d.message || 'Pipeline failed' }
+              }
+            }
+          } catch (err) {
+            // ignore network or parse errors and retry
+            console.warn('pipeline status poll error', err)
+          }
+          // wait then retry indefinitely (no timeout)
+          await new Promise((res) => setTimeout(res, POLL_INTERVAL_MS))
+        }
+      }
+
+      const pipelineResult = await waitForPipeline()
+      if (!pipelineResult.ok) {
+        // pipeline failed: surface the error but still navigate so user can inspect partial outputs
+        console.error('Pipeline failed:', pipelineResult.message)
+        setError(`解析が失敗しました: ${pipelineResult.message}`)
+      }
+
+      // Pipeline finished (success or failure) — navigate to Viewer
       onComplete?.({ file, preview_periods })
     } catch (err) {
       console.error('Upload failed', err)
@@ -182,15 +280,66 @@ export default function Upload({ onComplete, onSkip }) {
               <div className="overlay-text">
                 <div>上傳檔案中，並自動執行 Stage 1-6</div>
                 <div className="overlay-subtext">
-                  預估剩餘 {Math.max(0, TOTAL_ESTIMATED_SEC - elapsedSec)} 秒
+                  {(() => {
+                    // estimate remaining time using pipeline percent when available
+                    const serverRem = pipelineStatus && pipelineStatus.estimated_remaining_sec != null ? Number(pipelineStatus.estimated_remaining_sec) : null
+                    const pct = pipelineStatus && pipelineStatus.percent != null ? Number(pipelineStatus.percent) : null
+                    if (serverRem != null) {
+                      return `推定剩餘 ${serverRem} 秒 (${pct != null ? pct + '%' : ''})`
+                    }
+                    if (pct != null && pct > 0 && pct < 100 && elapsedSec > 0) {
+                      const rem = Math.max(0, Math.round((elapsedSec * (100 - pct)) / pct))
+                      return `推定剩餘 ${rem} 秒 (${pct}% 完成)`
+                    }
+                    return `預估剩餘 ${Math.max(0, TOTAL_ESTIMATED_SEC - elapsedSec)} 秒`
+                  })()}
                 </div>
+                {pipelineStatus && (
+                  <div style={{ marginTop: 8 }}>
+                    <div style={{ fontSize: 13 }}>{pipelineStatus.current_stage || pipelineStatus.message}</div>
+                    <div style={{ height: 8, background: '#eee', borderRadius: 4, marginTop: 6 }}>
+                      <div style={{ width: `${pipelineStatus.percent || 0}%`, height: '100%', background: '#60a5fa', borderRadius: 4 }} />
+                    </div>
+                    <div style={{ fontSize: 12, marginTop: 6 }}>{pipelineStatus.percent != null ? `${pipelineStatus.percent}%` : ''}</div>
+                  </div>
+                )}
+                <div style={{ marginTop: 8 }}>
+                  <button type="button" className="link-btn" onClick={() => setShowLogs((s) => !s)} style={{ padding: '4px 8px' }}>
+                    {showLogs ? '關閉實行記錄' : '顯示實行記錄'}
+                  </button>
+                </div>
+                {showLogs && (
+                  <pre
+                    style={{
+                      maxHeight: 180,
+                      overflow: 'auto',
+                      fontSize: 12,
+                      marginTop: 8,
+                      background: '#111',
+                      color: '#eee',
+                      padding: 8,
+                      borderRadius: 6,
+                      maxWidth: '80vw',
+                      whiteSpace: 'pre-wrap',
+                      wordBreak: 'break-word',
+                    }}
+                  >
+                    {pipelineLogs || 'ログはまだ生成されていません'}
+                  </pre>
+                )}
               </div>
             </div>
             <ul className="stage-list">
               {PIPELINE_STEPS.map((step, index) => {
                 let state = 'pending'
-                if (index < activeStageIdx) state = 'done'
-                else if (index === activeStageIdx) state = 'active'
+                // prefer pipelineStatus mapping when available
+                const mappedIdx = getIndexFromStatus(pipelineStatus)
+                let useIdx = mappedIdx != null ? mappedIdx : activeStageIdx
+                // clamp to valid range
+                if (useIdx == null) useIdx = 0
+                if (useIdx >= PIPELINE_STEPS.length) useIdx = PIPELINE_STEPS.length - 1
+                if (index < useIdx) state = 'done'
+                else if (index === useIdx) state = 'active'
                 return (
                   <li key={step.label} className={`stage-item stage-item--${state}`}>
                     <span className="stage-dot" aria-hidden />

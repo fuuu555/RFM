@@ -1,5 +1,7 @@
 import React from 'react'
 
+const API_BASE = 'http://localhost:8000'
+
 const formatCurrency = (value) => {
   if (value === null || value === undefined) return '-'
   return `£${typeof value === 'number' ? value.toLocaleString() : value}`
@@ -14,8 +16,43 @@ const formatFrequency = (freq) => {
 export default function ViewerSegments({ analytics, monthLabel }) {
   const { stage4 } = analytics
 
-  // 安全取值輔助
   const safeNum = (v) => (v === null || v === undefined ? 0 : Number(v))
+
+  const normalizePeriod = (label) => {
+    if (!label) return ''
+    if (/^\d{4}-\d{2}-\d{2}$/.test(label)) return label.slice(0, 7)
+    if (/^\d{4}-\d{2}$/.test(label) || /^\d{4}$/.test(label)) return label
+    return ''
+  }
+
+  const downloadSegment = async (clusterId) => {
+    try {
+      const p = normalizePeriod(monthLabel)
+      const periodQuery = p ? `?period=${encodeURIComponent(p)}` : ''
+      const url = `${API_BASE}/stage4/segment/${clusterId}/download${periodQuery}`
+      const res = await fetch(url)
+      if (!res.ok) {
+        const txt = await res.text().catch(() => null)
+        alert(`ダウンロードに失敗しました: ${res.status} ${txt || ''}`)
+        return
+      }
+      const blob = await res.blob()
+      const disp = res.headers.get('content-disposition') || ''
+      let filename = `segment_${clusterId}_customers.csv`
+      const m = disp.match(/filename="?([^";]+)"?/)
+      if (m) filename = m[1]
+      const link = document.createElement('a')
+      link.href = window.URL.createObjectURL(blob)
+      link.download = filename
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      window.URL.revokeObjectURL(link.href)
+    } catch (e) {
+      console.error(e)
+      alert('ダウンロードに失敗しました')
+    }
+  }
 
   const metricCards = [
     {
@@ -58,14 +95,36 @@ export default function ViewerSegments({ analytics, monthLabel }) {
             stage4.segments.map((segment) => (
               <div key={`${segment.clusterId || segment.name}`} className="segment-row">
                 <div className="segment-meta">
-                  <div className="segment-meta-head">
-                    <h3 style={{ color: segment.color || '#2563eb' }}>
-                      {segment.name || `Cluster ${segment.clusterId}`}
+                  <div className="segment-meta-head" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <h3 style={{ color: segment.color || '#2563eb', margin: 0, display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <span style={{ display: 'inline-block' }}>{segment.name || `Cluster ${segment.clusterId}`}</span>
+                      <button
+                        type="button"
+                        onClick={() => downloadSegment(segment.clusterId)}
+                        title="CSVダウンロード"
+                        aria-label={`Download CSV for ${segment.name || `Cluster ${segment.clusterId}`}`}
+                        style={{
+                          background: 'transparent',
+                          border: 'none',
+                          padding: 4,
+                          cursor: 'pointer',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          justifyContent: 'center'
+                        }}
+                      >
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden>
+                          <path d="M12 3v10" stroke={segment.color || '#2563eb'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                          <path d="M8 11l4 4 4-4" stroke={segment.color || '#2563eb'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                          <path d="M21 21H3" stroke={segment.color || '#2563eb'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                        </svg>
+                      </button>
                     </h3>
-                    <span className="segment-share" style={{ backgroundColor: segment.color + '20' }}>
+                    <span className="segment-share" style={{ backgroundColor: (segment.color || '#2563eb') + '20', marginLeft: 6 }}>
                       {segment.share ?? 0}% ({safeNum(segment.count) || 0} 人)
                     </span>
                   </div>
+
                   <p className="segment-stats">
                     客單價 {formatCurrency(segment.avgBasket)} · {formatFrequency(segment.frequency)}
                   </p>

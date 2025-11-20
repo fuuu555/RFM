@@ -780,3 +780,62 @@ def download_stage3_cluster(cluster_id: int):
     except Exception as e:
         print(f"Error preparing cluster CSV: {e}")
         raise HTTPException(status_code=500, detail="Failed to prepare CSV")
+
+
+@app.get("/stage4/segment/{cluster_id}/download")
+def download_stage4_segment(cluster_id: int, period: str | None = None):
+    """Return a CSV file containing all customers assigned to the given segment/cluster id.
+    Optionally filter by `period` (format 'YYYY-MM' or 'YYYY').
+    """
+    csv_path = ARTIFACTS_DIR / "stage4_selected_customers_train.csv"
+    trans_path = ARTIFACTS_DIR / "stage2_df_cleaned.csv"
+    if not csv_path.exists():
+        raise HTTPException(status_code=404, detail="stage4 customers file not found")
+    try:
+        df = pd.read_csv(csv_path)
+        # Normalize cluster column name (accept 'cluster' or 'Cluster')
+        if 'cluster' not in df.columns and 'Cluster' in df.columns:
+            df.rename(columns={'Cluster': 'cluster'}, inplace=True)
+
+        # Optionally filter to active customers in the requested period
+        if period and trans_path.exists():
+            try:
+                df_trans = pd.read_csv(trans_path)
+                df_trans['InvoiceDate'] = pd.to_datetime(df_trans['InvoiceDate'])
+                df_trans['_period'] = df_trans['InvoiceDate'].dt.to_period('M').astype(str)
+                if len(period) == 4:
+                    active_cust = df_trans[df_trans['InvoiceDate'].dt.year.astype(str) == period]['CustomerID'].unique()
+                else:
+                    active_cust = df_trans[df_trans['_period'] == period]['CustomerID'].unique()
+                df = df[df['CustomerID'].isin(active_cust)]
+            except Exception:
+                pass
+
+        # Ensure numeric cluster values
+        if 'cluster' not in df.columns:
+            raise HTTPException(status_code=404, detail="cluster column not found in stage4 file")
+
+        # Coerce cluster to int-like for comparison
+        try:
+            df['cluster'] = pd.to_numeric(df['cluster'], errors='coerce').astype('Int64')
+        except Exception:
+            pass
+
+        selected = df[df['cluster'] == int(cluster_id)]
+        if selected.empty:
+            raise HTTPException(status_code=404, detail=f"No customers found for cluster {cluster_id}")
+
+        # Prepare CSV in-memory (UTF-8 BOM for Excel compatibility)
+        buf = io.StringIO()
+        selected.to_csv(buf, index=False)
+        csv_bytes = buf.getvalue().encode('utf-8-sig')
+        buf.close()
+        filename = f"segment_{cluster_id}_customers.csv"
+        return StreamingResponse(io.BytesIO(csv_bytes), media_type='text/csv', headers={
+            "Content-Disposition": f'attachment; filename="{filename}"'
+        })
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Error preparing stage4 CSV: {e}")
+        raise HTTPException(status_code=500, detail="Failed to prepare CSV")

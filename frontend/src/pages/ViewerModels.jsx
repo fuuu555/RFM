@@ -165,8 +165,8 @@ export default function ViewerModels({ analytics }) {
           <div className="segment-pie card-hoverable" style={{ position: 'relative' }}>
             <div className="cluster-bars-head">
               <h3>商品分群規模分佈</h3>
-              <p className="models-subtitle">（合計 {stage3.clusters.length} 群）</p>
-              <p style={{ marginTop: 6, fontSize: '0.85em', color: 'var(--muted)' }}>注: 割合はクラスタに属する製品数の比率です（Top SKU 数や売上比率とは異なります）。</p>
+              <p className="models-subtitle">（總共 {stage3.clusters.length} 群）</p>
+              <p style={{ marginTop: 6, fontSize: '0.85em', color: 'var(--muted)' }}>註：此比例代表屬於該叢集的產品數量比率（與Top SKU數量或銷售額比例不同）。</p>
             </div>
             
             {/* 円グラフ本体: SVG でセグメントを個別に描画してホバーで拡大 */}

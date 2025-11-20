@@ -13,6 +13,19 @@ export default function ViewerOverview({
   kpis,
   renderTrend,
 }) {
+  const fmtDay = (s) => {
+    if (!s) return ''
+    try {
+      if (typeof s !== 'string') s = String(s)
+      // leave monthly label (YYYY-MM) as-is
+      if (/^\d{4}-\d{2}$/.test(s)) return s
+      const d = new Date(s)
+      if (!isNaN(d)) return d.toISOString().slice(0, 10)
+      return s.split(' ')[0]
+    } catch (e) {
+      return s
+    }
+  }
   // Safely unwrap KPI values to avoid runtime errors when API hasn't provided them yet
   const avgSpend = (kpis && kpis.averageSpend != null) ? kpis.averageSpend : 0
   const avgSpendTrend = (kpis && kpis.averageTrend != null) ? kpis.averageTrend : 0
@@ -26,7 +39,7 @@ export default function ViewerOverview({
       <div className="section-head">
         <div className="section-hero">
           <h1 className="hero-title">會員概況</h1>
-          <p className="section-subtitle">{monthLabel}</p>
+          <p className="section-subtitle">{fmtDay(monthLabel)}</p>
         </div>
       </div>
       <div className="two-col">

@@ -105,16 +105,35 @@ export default function ViewerModels({ analytics }) {
         <div className="models-section-head">
           <div>
             <p className="models-eyebrow">Stage 3 · 商品分群</p>
-            <h2 className="models-title">商品分群結果（5 類）</h2>
+            <h2 className="models-title">商品分群結果（{stage3.clusters.length} 類）</h2>
           </div>
           <div className="models-pill">資料時間 {refreshedAt}</div>
         </div>
         <div className="models-grid">
           {stage3.clusters.map((cluster) => (
             <article key={cluster.id} className="models-card card-hoverable">
-              <header className="models-card-head">
-                <span className="badge">Cluster {cluster.id}</span>
-                <h3>{cluster.name}</h3>
+              <header className="models-card-head" style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between'}}>
+                <div>
+                  <span className="badge">Cluster {cluster.id}</span>
+                  <h3 style={{marginTop: 4}}>{cluster.name}</h3>
+                </div>
+                <div>
+                  <a
+                    className="download-link"
+                    href={`/stage3/cluster/${cluster.id}/download`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    title="下載此群組的所有商品為CSV格式"
+                    style={{textDecoration: 'none', color: 'inherit'}}
+                  >
+                    {/* simple download icon */}
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                      <path d="M12 3v12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                      <path d="M8 11l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                      <path d="M21 21H3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                    </svg>
+                  </a>
+                </div>
               </header>
               <div className="models-chip-row">
                 {cluster.keywords.map((keyword) => (
@@ -148,6 +167,7 @@ export default function ViewerModels({ analytics }) {
             <div className="cluster-bars-head">
               <h3>商品分群規模分佈</h3>
               <p className="models-subtitle">（合計 {stage3.clusters.length} 群）</p>
+              <p style={{ marginTop: 6, fontSize: '0.85em', color: 'var(--muted)' }}>注: 割合はクラスタに属する製品数の比率です（Top SKU 数や売上比率とは異なります）。</p>
             </div>
             
             {/* 円グラフ本体: SVG でセグメントを個別に描画してホバーで拡大 */}

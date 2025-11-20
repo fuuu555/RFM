@@ -4,9 +4,12 @@ import json
 import pandas as pd
 import numpy as np
 from pathlib import Path
+import re
+import io
+from collections import Counter
 
 from fastapi import FastAPI, File, HTTPException, UploadFile, status
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from fastapi.concurrency import run_in_threadpool
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -437,6 +440,74 @@ def analyze_stage3_products(period: str | None = None):
         return None
     
     try:
+        # --- Helper: generate a human-friendly product group name from keywords/metadata ---
+        def _extract_terms_from_descriptions(desc_list):
+            tokens = []
+            for d in desc_list:
+                if not isinstance(d, str):
+                    continue
+                # split on non-word, remove short token and numeric-only
+                for t in re.split(r"[^A-Za-z0-9]+", d):
+                    tt = t.strip().lower()
+                    if len(tt) <= 2 or tt.isnumeric():
+                        continue
+                    tokens.append(tt)
+            if not tokens:
+                return []
+            counts = Counter(tokens)
+            # return tokens sorted by frequency
+            return [t for t, _ in counts.most_common()]
+
+        def _price_label(avg_price):
+            try:
+                p = float(avg_price)
+            except Exception:
+                return ""
+            if p <= 5:
+                return "低価格"
+            if p <= 20:
+                return "中価格"
+            return "プレミアム"
+
+        def _generate_cluster_name(pid, descriptions, avg_price, return_rate):
+            """Rule-based naming only: extract frequent terms and attach price label."""
+            terms = _extract_terms_from_descriptions(descriptions)
+            price_tag = _price_label(avg_price)
+            if terms:
+                top = terms[0].replace('-', ' ').title()
+                second = terms[1].replace('-', ' ').title() if len(terms) > 1 else None
+                if second:
+                    name = f"{top} ＆ {second}"
+                else:
+                    name = top
+                if price_tag:
+                    name = f"{price_tag} {name}"
+                # indicate high returns concisely in Japanese
+                if return_rate and return_rate > 10:
+                    name = f"{name}（返品多め）"
+                return name
+            return f"Product Group {pid}"
+
+        # --- Cluster name normalization: 記号統一・不要語除去など ---
+        def _normalize_cluster_name(name: str) -> str:
+            if not name or not isinstance(name, str):
+                return name
+            s = name.strip()
+            # Replace ASCII ampersand with full-width＆ and ensure spacing
+            s = re.sub(r"\s*&\s*", " ＆ ", s)
+            # Remove trailing standalone 'And' (typo/noise)
+            s = re.sub(r"\bAnd\b\.?$", "", s, flags=re.IGNORECASE).strip()
+            # Collapse multiple spaces
+            s = re.sub(r"\s{2,}", " ", s)
+            # Strip leading/trailing punctuation
+            s = s.strip(' -_:;,./\\')
+            # Replace common English price tags with Japanese equivalents
+            s = s.replace('Budget', '低価格').replace('Mid-price', '中価格').replace('Premium', 'プレミアム')
+            # Normalize parentheses spacing
+            s = re.sub(r"\s*\(\s*", ' (', s)
+            s = re.sub(r"\s*\)\s*", ')', s)
+            return s
+
         # 1. クラスタ定義読み込み
         df_map = pd.read_csv(map_path)
         if df_map.shape[1] >= 2:
@@ -485,20 +556,29 @@ def analyze_stage3_products(period: str | None = None):
         grouped = merged.groupby("ClusterID")
         for pid, group in grouped:
             share = round((len(group) / total_products) * 100, 1)
-            top_keywords = group["Description"].astype(str).head(3).tolist()
-            
-            # 【ここが修正点】リアルな単価と返品率を計算
+            top_keywords = group["Description"].astype(str).head(5).tolist()
+
+            # リアルな単価と返品率を計算
             avg_price = int(group["UnitPrice"].mean()) if not group["UnitPrice"].isnull().all() else 0
-            
+
             total_q = group["Quantity"].sum()
             total_c = group["QuantityCanceled"].sum()
             return_rate = 0
             if (total_q + total_c) > 0:
                 return_rate = round((total_c / (total_q + total_c)) * 100, 1)
 
+            # Generate a human-friendly name (rule-based). To enable LLM-based naming,
+            # set environment variable `USE_GEMINI_NAMING=1` and provide `GEMINI_API_KEY`.
+            name = _generate_cluster_name(pid, top_keywords, avg_price, return_rate)
+            # 正規化を適用して不要語・記号などを整理
+            try:
+                name = _normalize_cluster_name(name)
+            except Exception:
+                pass
+
             clusters.append({
                 "id": _to_int_safe(pid),
-                "name": f"Product Group {pid}",
+                "name": name,
                 "share": share,
                 "avgPrice": avg_price,       # 計算結果
                 "keywords": top_keywords,
@@ -623,3 +703,41 @@ def get_latest_report(period: str | None = None):
     except Exception as e:
         print(f"Error generating report: {e}")
         raise HTTPException(status_code=500, detail=f"Report generation failed: {str(e)}")
+
+
+@app.get("/stage3/cluster/{cluster_id}/download")
+def download_stage3_cluster(cluster_id: int):
+    """Return a CSV file containing all product descriptions assigned to the given cluster id."""
+    map_path = ARTIFACTS_DIR / "stage3_desc_to_prod_cluster.csv"
+    if not map_path.exists():
+        raise HTTPException(status_code=404, detail="stage3 mapping file not found")
+    try:
+        df_map = pd.read_csv(map_path)
+        # If file had two columns without headers, normalize to known names
+        if df_map.shape[1] >= 2 and list(df_map.columns)[:2] != ["Description", "ClusterID"]:
+            # Attempt to coerce headerless file
+            if 'ClusterID' not in df_map.columns and 'Description' not in df_map.columns:
+                df_map.columns = ["Description", "ClusterID"] + list(df_map.columns[2:])
+        # Ensure ClusterID numeric
+        if 'ClusterID' not in df_map.columns:
+            # try with second column
+            df_map.columns = ["Description", "ClusterID"] + list(df_map.columns[2:])
+        df_map = df_map[pd.to_numeric(df_map['ClusterID'], errors='coerce').notnull()]
+        df_map['ClusterID'] = df_map['ClusterID'].astype(int)
+        selected = df_map[df_map['ClusterID'] == int(cluster_id)]
+        if selected.empty:
+            raise HTTPException(status_code=404, detail=f"No products found for cluster {cluster_id}")
+        # Prepare CSV in-memory (UTF-8 BOM for Excel compatibility)
+        buf = io.StringIO()
+        selected.to_csv(buf, index=False)
+        csv_bytes = buf.getvalue().encode('utf-8-sig')
+        buf.close()
+        filename = f"cluster_{cluster_id}_products.csv"
+        return StreamingResponse(io.BytesIO(csv_bytes), media_type='text/csv', headers={
+            "Content-Disposition": f'attachment; filename="{filename}"'
+        })
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Error preparing cluster CSV: {e}")
+        raise HTTPException(status_code=500, detail="Failed to prepare CSV")

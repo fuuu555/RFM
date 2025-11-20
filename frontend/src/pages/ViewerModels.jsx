@@ -107,7 +107,6 @@ export default function ViewerModels({ analytics }) {
             <p className="models-eyebrow">Stage 3 · 商品分群</p>
             <h2 className="models-title">商品分群結果（{stage3.clusters.length} 類）</h2>
           </div>
-          <div className="models-pill">資料時間 {refreshedAt}</div>
         </div>
         <div className="models-grid">
           {stage3.clusters.map((cluster) => (

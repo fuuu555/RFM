@@ -115,6 +115,8 @@ export default function Viewer({ file, initialPeriods = null, onReset }) {
   }, [initialPeriods])
 
   // レスポンスを解析して状態を更新するヘルパ（先に定義して useEffect から参照可能にする）
+
+
   function applyReportData(data) {
     const safeNum = (v) => (v === null || v === undefined ? null : Number(v))
     const overview = data.overview || {}
@@ -163,7 +165,7 @@ export default function Viewer({ file, initialPeriods = null, onReset }) {
           engagementTrend: overview.kpis.engagementTrend,
         },
         realtime: {
-          updatedAt: overview.lastDate || prev.realtime.updatedAt,
+          updatedAt: fmtDay(overview.lastDate || prev.realtime.updatedAt),
           compareDate: prev.realtime.compareDate,
           days: overview.chart || prev.realtime.days,
           keyMetrics: [
@@ -175,6 +177,29 @@ export default function Viewer({ file, initialPeriods = null, onReset }) {
         },
       }))
     }
+  }
+
+  // 日付を日単位または年月単位で整形するユーティリティ
+  const fmtDay = (s) => {
+    if (!s) return ''
+    try {
+      // YYYY-MM-DD を優先
+      const m1 = String(s).match(/^(\d{4}-\d{2}-\d{2})/)
+      if (m1) return m1[1]
+      // YYYY-MM のみの場合はそのまま返す
+      const m2 = String(s).match(/^(\d{4}-\d{2})$/)
+      if (m2) return m2[1]
+      const d = new Date(s)
+      if (!isNaN(d.getTime())) {
+        const yyyy = d.getFullYear()
+        const mm = String(d.getMonth() + 1).padStart(2, '0')
+        const dd = String(d.getDate()).padStart(2, '0')
+        return `${yyyy}-${mm}-${dd}`
+      }
+    } catch (e) {
+      // fallthrough
+    }
+    return String(s)
   }
 
   // 初回マウント時：まず available_periods を取得し、最新期間でデータを取得する
@@ -216,7 +241,7 @@ export default function Viewer({ file, initialPeriods = null, onReset }) {
 
   
   const { totalMembers, regions, kpis, realtime } = displayData
-  const monthLabel = displayData.label
+  const monthLabel = fmtDay(displayData.label)
 
   const cumulative = useMemo(
     () =>

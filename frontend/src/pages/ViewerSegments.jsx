@@ -128,6 +128,7 @@ export default function ViewerSegments({ analytics, monthLabel }) {
           </div>
         </div>
       </section>
+
     </div>
   )
 }

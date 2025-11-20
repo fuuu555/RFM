@@ -7,6 +7,20 @@ export default function ViewerInsights({
   formatMetricValue,
   formatTrend,
 }) {
+  const fmtDay = (s) => {
+    if (!s) return ''
+    try {
+      if (typeof s !== 'string') s = String(s)
+      // keep YYYY-MM as-is
+      if (/^\d{4}-\d{2}$/.test(s)) return s
+      const d = new Date(s)
+      if (!isNaN(d)) return d.toISOString().slice(0, 10)
+      // fallback: take date portion before space
+      return s.split(' ')[0]
+    } catch (e) {
+      return s
+    }
+  }
   return (
     <div className="page-inner full realtime-layout">
       <section className="key-metrics key-metrics--inline">
@@ -37,10 +51,10 @@ export default function ViewerInsights({
         <div className="realtime-header">
           <div>
             <h2 className="realtime-title">本月銷售趨勢（示意）</h2>
-            <p className="realtime-subtitle">顯示資料至 {realtime.updatedAt}</p>
+            <p className="realtime-subtitle">顯示資料至 {fmtDay(realtime.updatedAt)}</p>
           </div>
           <div className="realtime-legend">
-            <span className="legend-dot today" /> {realtime.compareDate}
+            <span className="legend-dot today" /> {fmtDay(realtime.compareDate)}
           </div>
         </div>
         <div className="realtime-body">

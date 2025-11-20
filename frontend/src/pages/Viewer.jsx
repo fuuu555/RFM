@@ -326,7 +326,25 @@ export default function Viewer({ file, initialPeriods = null, onReset }) {
   const chartGeom = useMemo(() => {
     const width = 600
     const height = 220
-    const days = realtime?.days ?? []
+    const rawDays = realtime?.days ?? []
+
+    // If we're viewing a whole year, aggregate daily values into months.
+    const days = (periodMode === 'year') ? (() => {
+      const m = new Map()
+      for (const pt of rawDays) {
+        try {
+          const d = new Date(pt.day)
+          const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+          m.set(key, (m.get(key) || 0) + Number(pt.value || 0))
+        } catch (e) {
+          // skip malformed
+        }
+      }
+      // sort keys chronologically
+      const entries = Array.from(m.entries()).sort((a, b) => a[0].localeCompare(b[0]))
+      return entries.map(([k, v]) => ({ day: k, value: v }))
+    })() : rawDays
+
     const values = days.map((pt) => pt.value)
     const maxValue = Math.max(...values, 100000)
 
@@ -341,29 +359,49 @@ export default function Viewer({ file, initialPeriods = null, onReset }) {
       return {
         points: coords.map(({ x, y }) => `${x},${y}`).join(' '),
         last: coords[coords.length - 1],
+        pointsArr: coords,
       }
     }
 
     const today = buildPoints(days)
 
-    const ticks = Array.from({ length: 10 }, (_, idx) => {
-      const value = (idx + 1) * 10000
-      const pct = value / maxValue
-      return {
-        value,
-        y: Math.round(height - pct * height),
-      }
-    })
+    // Generate Y-axis ticks dynamically based on maxValue (nice numbers)
+    const makeTicks = (max) => {
+      if (!max || max <= 0) return [{ value: 0, y: height }]
+      const nTicks = 5
+      const rawStep = max / (nTicks - 1)
+      const magnitude = Math.pow(10, Math.floor(Math.log10(rawStep)))
+      const step = Math.ceil(rawStep / magnitude) * magnitude
+      const top = step * (nTicks - 1)
+      const vals = Array.from({ length: nTicks }, (_, i) => i * step)
+      return vals.map((value) => ({ value, y: Math.round(height - (value / top) * height) }))
+    }
+
+    const ticks = makeTicks(maxValue)
 
     return {
       width,
       height,
       todayPath: today.points,
       todayLast: today.last,
-      labels: Array.from({ length: 30 }, (_, idx) => String(idx + 1).padStart(2, '0')),
+      pointsArr: today.pointsArr || [],
+      // Use actual days from the backend when available. Fallback to 1..30 if no data.
+      labels: (days && days.length) ? days.map((pt) => {
+        try {
+          // If in year mode, backend returns keys like 'YYYY-MM' after aggregation
+          if (periodMode === 'year' && typeof pt.day === 'string') {
+            const m = pt.day.match(/^(\d{4})-(\d{2})$/)
+            if (m) return m[2] // month portion 'MM'
+          }
+          const d = new Date(pt.day)
+          return String(d.getDate()).padStart(2, '0')
+        } catch (e) {
+          return ''
+        }
+      }) : Array.from({ length: 30 }, (_, idx) => String(idx + 1).padStart(2, '0')),
       ticks,
     }
-  }, [realtime])
+  }, [realtime, periodMode])
 
   const renderTrend = (value) => {
     const positive = value >= 0

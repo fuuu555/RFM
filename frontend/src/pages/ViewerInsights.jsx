@@ -102,10 +102,31 @@ export default function ViewerInsights({
                   </>
                 )}
               </svg>
-              <div className="chart-x-axis">
-                {chartGeom.labels.map((label) => (
-                  <span key={label}>{label}</span>
-                ))}
+              <div
+                className="chart-x-axis"
+                style={{ position: 'relative', display: 'block', height: 28 }}
+              >
+                {Array.isArray(chartGeom.pointsArr) && chartGeom.pointsArr.length > 0 ? (
+                  chartGeom.pointsArr.map((pt, i) => (
+                    <span
+                      key={`${chartGeom.labels[i] || i}-${i}`}
+                      style={{
+                        position: 'absolute',
+                        left: `${(pt.x / chartGeom.width) * 100}%`,
+                        transform: 'translateX(-50%)',
+                        whiteSpace: 'nowrap',
+                        fontSize: 10,
+                        color: 'var(--muted)'
+                      }}
+                    >
+                      {chartGeom.labels[i] || ''}
+                    </span>
+                  ))
+                ) : (
+                  chartGeom.labels.map((label) => (
+                    <span key={label}>{label}</span>
+                  ))
+                )}
               </div>
             </div>
           </div>

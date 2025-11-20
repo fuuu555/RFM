@@ -128,35 +128,6 @@ export default function ViewerSegments({ analytics, monthLabel }) {
           </div>
         </div>
       </section>
-
-      <section className="models-section" style={{ marginTop: '30px' }}>
-        <h3>關於分群分析</h3>
-        <div style={{ fontSize: '13px', lineHeight: '1.6', color: '#6b7280' }}>
-          <p>
-            系統根據顧客的購買行為模式（購買頻率、金額、商品類別偏好）自動將顧客分成 11 個不同的族群。每個族群具有獨特特性，需採用客製化的行銷策略。
-          </p>
-          <p style={{ marginTop: '10px' }}>
-            <strong>忠誠客群：</strong>
-            購買頻率極高（87 件/期間）且消費金額偏高，為最優先的 VIP 客群。
-          </p>
-          <p style={{ marginTop: '10px' }}>
-            <strong>VIP 與超級 VIP：</strong>
-            高頻率且高消費，建議提供專屬客服與限定活動。
-          </p>
-          <p style={{ marginTop: '10px' }}>
-            <strong>偶發高單價層・持續高單價層：</strong>
-            消費金額高但購買頻率中等，可能為大宗或企業客戶。
-          </p>
-          <p style={{ marginTop: '10px' }}>
-            <strong>標準層：</strong>
-            為最大族群，購買行為均衡，適合定期行銷活動。
-          </p>
-          <p style={{ marginTop: '10px' }}>
-            <strong>經濟層與類別專精層：</strong>
-            購買頻率與金額較低或集中於特定類別，建議檢視價格策略與提供專屬推薦。
-          </p>
-        </div>
-      </section>
     </div>
   )
 }

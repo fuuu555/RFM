@@ -744,6 +744,10 @@ body {
   background: #fff;
   border-radius: 50%;
 }
+
+/* Ensure the chart receives pointer events and the center pseudo-element doesn't block them */
+.segment-pie-chart { pointer-events: auto; cursor: default; }
+.segment-pie-chart::after { pointer-events: none; }
 .segment-pie-legend {
   list-style: none;
   padding: 0;
@@ -1349,5 +1353,21 @@ body {
   .shap-content {
     grid-template-columns: 1fr;
   }
+}
+
+/* Pie tooltip and legend active state */
+.pie-tooltip {
+  font-size: 13px;
+  color: var(--text);
+  border: 1px solid var(--border);
+}
+.pie-tooltip { z-index: 40; }
+
+/* Slight hover lift for SVG paths (exploded piece) */
+.segment-pie svg path { cursor: pointer; }
+.segment-pie-legend li.legend-active {
+  transform: translateX(6px);
+  font-weight: 700;
+  transition: transform .12s ease, color .12s ease;
 }
 
